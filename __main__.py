@@ -52,6 +52,7 @@ x_val, y_val = create_training_data(validation, history_length)
 model = keras.Sequential([
     layers.LSTM(128, input_shape=(1, 1)),
     layers.Dense(128, activation='relu'),
+    layers.Dense(128, activation='relu'),
     layers.Dense(64, activation='relu'),
     layers.Dense(1, activation='relu'),
 ])
