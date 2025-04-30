@@ -76,16 +76,16 @@ predict = model.predict(x_train)
 print(predict)
 
 # Extract accuracies
-train_accuracy = history.history['accuracy']
-val_accuracy = history.history['val_accuracy']
+train_loss = history.history['loss']
+val_loss = history.history['val_loss']
 
 # Plotting
 plt.figure(figsize=(8, 5))
-plt.plot(range(1, epochs+1), train_accuracy, label='Training Accuracy', marker='o')
-plt.plot(range(1, epochs+1), val_accuracy, label='Test Accuracy', marker='s')
-plt.title('Training and Test Accuracy per Epoch')
+plt.plot(range(1, epochs+1), train_loss, label='Training loss', marker='o')
+plt.plot(range(1, epochs+1), val_loss, label='Test loss', marker='s')
+plt.title('Training and Test Loss per Epoch')
 plt.xlabel('Epoch')
-plt.ylabel('Accuracy')
+plt.ylabel('Loss')
 plt.xticks(range(1, epochs+1))
 plt.ylim(0, 0.1)
 plt.grid(True)
