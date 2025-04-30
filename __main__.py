@@ -27,29 +27,28 @@ dataset = scipy.io.loadmat('Xtrain.mat')
 history_length = 2
 batch_size = 64
 
-Xtrain = np.array(dataset['Xtrain'])
-x_train, y_train = create_training_data(Xtrain, history_length)
+X = np.array(dataset['Xtrain'])
 
+train_size = int(len(X) * 0.8)
+train, test = X[:train_size], X[train_size:]
 
-print(x_train, y_train)
+x_train, y_train = create_training_data(train, history_length)
+x_test, y_test = create_training_data(test, history_length)
 
 # example code
-model = keras.Sequential()
-
-# Add a LSTM layer with 128 internal units.
-model.add(layers.LSTM(128))
-
-# Add a Dense layer with 10 units.
-model.add(layers.Dense(10))
+model = keras.Sequential([
+    layers.LSTM(128, input_shape=(1, 1)),
+    layers.Dense(10),
+])
 
 model.summary()
 
 model.compile(
-    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    loss='mse',
     optimizer="sgd",
     metrics=["accuracy"],
 )
 
 model.fit(
-    x_train, y_train, batch_size=batch_size, epochs=1
+    x_train, y_train, validation_data=(x_test, y_test), batch_size=batch_size, epochs=100
 )
