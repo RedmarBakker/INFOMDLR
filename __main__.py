@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 
-history_length = 2
+history_length = 100
 batch_size = 64
 train_test_balance = 0.8
 epochs = 100
@@ -41,15 +41,18 @@ x_val, y_val = create_training_data(validation, history_length)
 
 # example code
 model = keras.Sequential([
-    layers.LSTM(128, input_shape=(1, 1)),
-    layers.Dense(100, activation='relu'),
+    layers.LSTM(16, input_shape=(1, 1)),
+    layers.Dropout(0.5),
+    layers.Dense(16, activation='relu'),
+    layers.Dropout(0.5),
+    layers.Dense(16, activation='relu'),
 ])
 
 model.summary()
 
 model.compile(
     loss='mse',
-    optimizer="sgd",
+    optimizer="adam",
     metrics=["accuracy"],
 )
 
@@ -72,7 +75,7 @@ plt.title('Training and Test Accuracy per Epoch')
 plt.xlabel('Epoch')
 plt.ylabel('Accuracy')
 plt.xticks(range(1, epochs+1))
-plt.ylim(0, 1.0)
+plt.ylim(0, 0.1)
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
