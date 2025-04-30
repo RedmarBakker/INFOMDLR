@@ -33,6 +33,9 @@ epochs = 100
 
 X = np.array(dataset['Xtrain'])
 
+plt.plot(X)
+plt.show()
+
 min_val = np.min(X)
 max_val = np.max(X)
 
