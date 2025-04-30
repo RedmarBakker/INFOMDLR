@@ -22,7 +22,6 @@ from keras import layers
 from helpers import create_training_data, scale_data
 import matplotlib.pyplot as plt
 
-
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 
@@ -52,10 +51,8 @@ x_val, y_val = create_training_data(validation, history_length)
 # example code
 model = keras.Sequential([
     layers.LSTM(128, input_shape=(1, 1)),
-    layers.Dropout(0.5),
     layers.Dense(128, activation='relu'),
-    layers.Dropout(0.5),
-    layers.Dense(128, activation='relu'),
+    layers.Dense(64, activation='relu'),
     layers.Dense(1, activation='relu'),
 ])
 
@@ -74,9 +71,10 @@ history = model.fit(
     epochs=epochs
 )
 
-predict = model.predict(x_train)
+predict = model.predict(X)
 
-print(predict)
+plt.plot(predict)
+plt.show()
 
 # Extract accuracies
 train_loss = history.history['loss']
