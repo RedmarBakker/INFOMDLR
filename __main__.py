@@ -19,19 +19,26 @@ import numpy as np
 import tensorflow as tf
 import keras
 from keras import layers
-from helpers import create_training_data
+from helpers import create_training_data, scale_data
 import matplotlib.pyplot as plt
 
 
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 
-history_length = 100
+history_length = 1
 batch_size = 64
 train_test_balance = 0.8
 epochs = 100
 
 X = np.array(dataset['Xtrain'])
+
+min_val = np.min(X)
+max_val = np.max(X)
+
+print('min: ', min_val, 'max: ', max_val)
+
+X = scale_data(X)
 
 train_size = int(len(X) * train_test_balance)
 train, validation = X[:train_size], X[train_size:]
@@ -41,11 +48,12 @@ x_val, y_val = create_training_data(validation, history_length)
 
 # example code
 model = keras.Sequential([
-    layers.LSTM(16, input_shape=(1, 1)),
+    layers.LSTM(128, input_shape=(1, 1)),
     layers.Dropout(0.5),
-    layers.Dense(16, activation='relu'),
+    layers.Dense(128, activation='relu'),
     layers.Dropout(0.5),
-    layers.Dense(16, activation='relu'),
+    layers.Dense(128, activation='relu'),
+    layers.Dense(1, activation='relu'),
 ])
 
 model.summary()
@@ -62,6 +70,10 @@ history = model.fit(
     batch_size=batch_size,
     epochs=epochs
 )
+
+predict = model.predict(x_train)
+
+print(predict)
 
 # Extract accuracies
 train_accuracy = history.history['accuracy']
