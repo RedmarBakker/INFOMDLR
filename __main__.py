@@ -22,16 +22,16 @@ from keras import layers
 from helpers import create_training_data
 
 # load the training data
-mat = scipy.io.loadmat('Xtrain.mat')
+dataset = scipy.io.loadmat('Xtrain.mat')
 
 history_length = 2
+batch_size = 64
 
-data = np.array(mat)
-train = create_training_data(data, history_length + 1)
+Xtrain = np.array(dataset['Xtrain'])
+x_train, y_train = create_training_data(Xtrain, history_length)
 
 
-print(train)
-exit()
+print(x_train, y_train)
 
 # example code
 model = keras.Sequential()
@@ -51,5 +51,5 @@ model.compile(
 )
 
 model.fit(
-    x_train, y_train, validation_data=(x_test, y_test), batch_size=batch_size, epochs=1
+    x_train, y_train, batch_size=batch_size, epochs=1
 )
