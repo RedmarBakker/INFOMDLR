@@ -19,20 +19,22 @@ import numpy as np
 import tensorflow as tf
 import keras
 from keras import layers
+from helpers import create_training_data
 
 # load the training data
 mat = scipy.io.loadmat('Xtrain.mat')
 
-train = np.array(mat)
+history_length = 2
+
+data = np.array(mat)
+train = create_training_data(data, history_length + 1)
+
 
 print(train)
+exit()
 
 # example code
 model = keras.Sequential()
-
-# Add an Embedding layer expecting input vocab of size 1000, and
-# output embedding dimension of size 64.
-model.add(layers.Embedding(input_dim=1000, output_dim=64))
 
 # Add a LSTM layer with 128 internal units.
 model.add(layers.LSTM(128))
@@ -41,3 +43,13 @@ model.add(layers.LSTM(128))
 model.add(layers.Dense(10))
 
 model.summary()
+
+model.compile(
+    loss=keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+    optimizer="sgd",
+    metrics=["accuracy"],
+)
+
+model.fit(
+    x_train, y_train, validation_data=(x_test, y_test), batch_size=batch_size, epochs=1
+)
