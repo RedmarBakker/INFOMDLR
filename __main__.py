@@ -20,25 +20,29 @@ import tensorflow as tf
 import keras
 from keras import layers
 from helpers import create_training_data
+import matplotlib.pyplot as plt
+
 
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 
 history_length = 2
 batch_size = 64
+train_test_balance = 0.8
+epochs = 100
 
 X = np.array(dataset['Xtrain'])
 
-train_size = int(len(X) * 0.8)
-train, test = X[:train_size], X[train_size:]
+train_size = int(len(X) * train_test_balance)
+train, validation = X[:train_size], X[train_size:]
 
 x_train, y_train = create_training_data(train, history_length)
-x_test, y_test = create_training_data(test, history_length)
+x_val, y_val = create_training_data(validation, history_length)
 
 # example code
 model = keras.Sequential([
     layers.LSTM(128, input_shape=(1, 1)),
-    layers.Dense(10),
+    layers.Dense(100, activation='relu'),
 ])
 
 model.summary()
@@ -49,6 +53,27 @@ model.compile(
     metrics=["accuracy"],
 )
 
-model.fit(
-    x_train, y_train, validation_data=(x_test, y_test), batch_size=batch_size, epochs=100
+history = model.fit(
+    x_train, y_train,
+    validation_data=(x_val, y_val),
+    batch_size=batch_size,
+    epochs=epochs
 )
+
+# Extract accuracies
+train_accuracy = history.history['accuracy']
+val_accuracy = history.history['val_accuracy']
+
+# Plotting
+plt.figure(figsize=(8, 5))
+plt.plot(range(1, epochs+1), train_accuracy, label='Training Accuracy', marker='o')
+plt.plot(range(1, epochs+1), val_accuracy, label='Test Accuracy', marker='s')
+plt.title('Training and Test Accuracy per Epoch')
+plt.xlabel('Epoch')
+plt.ylabel('Accuracy')
+plt.xticks(range(1, epochs+1))
+plt.ylim(0, 1.0)
+plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
