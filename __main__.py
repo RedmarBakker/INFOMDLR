@@ -25,7 +25,7 @@ import matplotlib.pyplot as plt
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 
-history_length = 1
+history_length = 10
 batch_size = 64
 train_test_balance = 0.8
 epochs = 100
@@ -50,10 +50,8 @@ x_val, y_val = create_training_data(validation, history_length)
 
 # example code
 model = keras.Sequential([
-    layers.LSTM(128, input_shape=(1, 1)),
-    layers.Dense(128, activation='relu'),
-    layers.Dense(128, activation='relu'),
-    layers.Dense(64, activation='relu'),
+    layers.Input(shape=(history_length, 1)),
+    layers.LSTM(32),
     layers.Dense(1, activation='relu'),
 ])
 
@@ -72,10 +70,7 @@ history = model.fit(
     epochs=epochs
 )
 
-predict = model.predict(X)
-
-plt.plot(predict)
-plt.show()
+## show loss results of training
 
 # Extract accuracies
 train_loss = history.history['loss']
@@ -94,3 +89,28 @@ plt.grid(True)
 plt.legend()
 plt.tight_layout()
 plt.show()
+
+## predict into the future
+
+current = scale_data(X[:history_length])
+
+step = 0
+predictions = []
+n_step_to_predict = 200
+while step < n_step_to_predict:
+    prediction = model.predict([current])[0]
+
+    predictions.append(prediction)
+    np.append(current, prediction)
+    current = current[:history_length]
+
+    step += 1
+
+plt.plot(predictions)
+plt.show()
+
+# print(model.predict([
+#     [1,2,3,4,5,6,7,8,9,10],
+#     [10,9,8,7,6,5,4,3,2,1],
+#     [12,15,19,20,30,60,100,160,120],
+# ]))
