@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
-X = np.array(dataset['Xtrain'])
+dat = np.array(dataset['Xtrain'])
 
 batch_size = 64
 history_size = 20 # still need to tweak this!
@@ -24,17 +24,23 @@ def create_data(raw_dat, time_steps):
 
     return np.array(histories), np.array(labels)
 
-train_size = int(len(X) * train_test_balance)
-val_size = int(len(X) * (1-train_test_balance))
-train, validation = X[val_size:], X[:val_size] # the latter part of the data seems to be easier to predict for the model / lower error
-                                               # we should have a better way to randomize the split, probably for tuning hyperparams too
-                                               # I think it s because some parts of the data just have smaller values? which makes MSE a difficult comparison
-# train, validation = X[:train_size], X[train_size:]
-x_train, y_train = create_data(train, history_size)
-x_val, y_val = create_data(validation, history_size)
+# zero-center & normalize
+X_mean = np.mean(dat)
+X_std = np.std(dat)
+X = (dat - X_mean) / X_std
 
-# batch and shuffle the training data
-dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)).shuffle(x_train.shape[0])
+# create items+labels & shuffle them
+train_size = int(len(X) * train_test_balance)
+x_all, y_all = create_data(X, history_size)
+shuffled_idxs = np.random.permutation(len(x_all))
+x_all, y_all = x_all[shuffled_idxs], y_all[shuffled_idxs]
+
+# create train/val split
+x_train, y_train = x_all[:train_size], y_all[:train_size]
+x_val, y_val = x_all[train_size:], y_all[train_size:]
+
+# batch the training data
+dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train)) #.shuffle(x_train.shape[0])
 batched_dataset = dataset.batch(batch_size)
 
 #
@@ -43,8 +49,8 @@ class LaserModel(tf.keras.Model):
     def __init__(self):
         super().__init__()
 
-        self.recurrent = layers.SimpleRNN(120, activation='relu')
-        self.dense = layers.Dense(120, activation='relu')
+        self.recurrent = layers.SimpleRNN(120, activation='relu', kernel_initializer='he_normal')
+        self.dense = layers.Dense(120, activation='relu', kernel_initializer='he_normal')
         self.output_layer = layers.Dense(1)
 
     def call(self, x, training=None):
@@ -67,7 +73,7 @@ def train_step(trainx, trainy):
     # forward
     with tf.GradientTape() as tape:
         y_pred = mdl.call(trainx, training=True)
-        loss = tf.keras.losses.MSE(trainy, y_pred)
+        loss = tf.keras.losses.MSE(trainy, y_pred) * 100 # 100x makes it more readable
 
     # update weights
     grads = tape.gradient(loss, mdl.trainable_variables)
@@ -79,14 +85,14 @@ def train_step(trainx, trainy):
 def val_step(valx, valy):
     # forward
     y_pred = mdl.call(valx)
-    loss = tf.keras.losses.MSE(valy, y_pred)
+    loss = tf.keras.losses.MSE(valy, y_pred) * 100
 
     # update loss/accuracy
     val_loss(loss)
 
 #
 # training
-epochs = 100
+epochs = 30
 train_losses = []
 val_losses = []
 for i in range(epochs):
@@ -130,11 +136,9 @@ plt.show()
 # visualize ground truth against model's predictions
 full_dat, _ = create_data(X, history_size)
 model_dat = mdl.call(full_dat).numpy()
+model_dat = (model_dat * X_std) + X_mean # scale data back
 
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 4)) 
-ax1.plot(X)
-ax1.set_title('Original data')
-ax2.plot(model_dat)
-ax2.set_title('Model predictions')
-plt.tight_layout()
+plt.plot(dat, label='Original data')
+plt.plot(np.append(range(history_size), model_dat), 'r--', label='Model predictions')
+plt.legend()
 plt.show()
