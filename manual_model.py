@@ -146,7 +146,7 @@ axs[0].plot(np.append([0]*history_size, model_dat_scaled), 'r--', label='Model p
 axs[0].legend()
 
 # visualize difference between the two
-diff = dat[history_size:] - model_dat
+diff = dat[history_size:] - model_dat_scaled
 axs[1].plot(np.append([0]*history_size, diff))
 plt.tight_layout()
 plt.show()
