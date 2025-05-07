@@ -1,0 +1,154 @@
+import scipy.io
+import numpy as np
+import tensorflow as tf
+import keras
+from keras import layers
+from helpers import create_training_data
+import matplotlib.pyplot as plt
+
+# define model
+class LaserModel(tf.keras.Model):
+    def __init__(self):
+        super().__init__()
+
+        self.recurrent = layers.SimpleRNN(120, activation='relu', kernel_initializer='he_normal')
+        self.dense = layers.Dense(120, activation='relu', kernel_initializer='he_normal')
+        self.output_layer = layers.Dense(1)
+
+    def call(self, x, training=None):
+        out = self.recurrent(x)
+        out = self.dense(out)
+        out = self.output_layer(out)
+
+        return out
+    
+# define steps
+def train_step(trainx, trainy):
+    # forward
+    with tf.GradientTape() as tape:
+        y_pred = mdl.call(trainx, training=True)
+        loss = tf.keras.losses.MSE(trainy, y_pred)
+
+    # update weights
+    grads = tape.gradient(loss, mdl.trainable_variables)
+    optimizer.apply_gradients(zip(grads, mdl.trainable_variables))
+
+    # update loss/accuracy
+    loss = (tf.sqrt(loss) * X_std) + X_mean # back to original units to make loss more interpretable
+    train_loss(loss)
+
+def val_step(valx, valy):
+    # forward
+    y_pred = mdl.call(valx)
+    loss = tf.keras.losses.MSE(valy, y_pred)
+
+    # update loss/accuracy
+    loss = (tf.sqrt(loss) * X_std) + X_mean
+    val_loss(loss)
+
+
+# function for creating the data
+def create_data(raw_dat, time_steps):
+    histories, labels = [], []
+
+    for i in range(len(raw_dat) - time_steps):
+        history = raw_dat[i:i+time_steps]
+        label = raw_dat[i+time_steps]
+
+        histories.append(history)
+        labels.append(label)
+
+    return np.array(histories), np.array(labels)
+
+# load the training data
+dataset = scipy.io.loadmat('Xtrain.mat')
+dat = np.array(dataset['Xtrain'])
+
+# zero-center & normalize
+X_mean = np.mean(dat)
+X_std = np.std(dat)
+X = (dat - X_mean) / X_std
+
+
+# 
+# 
+#
+
+batch_size = 64
+epochs = 30
+n_folds = 10
+train_size = int(len(X) * (1-(1/n_folds)))
+val_size = int(len(X) * (1/n_folds))
+h_sizes = range(1, 51, 5) # range(1,6)
+xfold_train_losses = []
+xfold_val_losses = []
+for history_size in h_sizes:
+    print(f"Evaluating history size of {history_size}...")
+
+    x_all, y_all = create_data(X, history_size)
+    train_losses, val_losses = [], [] # keep track across folds
+
+    # go through all folds
+    for i in range(n_folds):
+        # print(f" - Fold {i+1}")
+
+        # create train/val split
+        x_train = np.append(x_all[(i*val_size)+val_size:], x_all[:i*val_size])
+        y_train = np.append(y_all[(i*val_size)+val_size:], y_all[:i*val_size])
+        x_val = x_all[i*val_size:(i*val_size)+val_size]
+        y_val = y_all[i*val_size:(i*val_size)+val_size]
+
+        x_train, y_train = x_all[:train_size], y_all[:train_size]
+        x_val, y_val = x_all[train_size:], y_all[train_size:]
+
+        # batch the training data
+        dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
+        batched_dataset = dataset.batch(batch_size)
+        
+        # create model
+        mdl = LaserModel()
+        optimizer = tf.keras.optimizers.Adam()
+        train_loss = tf.keras.metrics.Mean(name='train_loss')
+        val_loss = tf.keras.metrics.Mean(name='val_loss')
+
+        # train model
+        lowest_loss = -1
+        for i in range(epochs):
+            train_loss.reset_state()
+            for x, y in batched_dataset:
+                train_step(x, y)
+
+            if (train_loss.result() < lowest_loss) or (lowest_loss < 0):
+                lowest_loss = train_loss.result()
+            
+        # test model
+        val_loss.reset_state()
+        val_step(x_val, y_val)
+
+        # save losses
+        train_losses.append(lowest_loss.numpy())
+        val_losses.append(val_loss.result().numpy())
+
+    # take mean of losses
+    xfold_train_losses.append(np.mean(train_losses))
+    xfold_val_losses.append(np.mean(val_losses))
+    print(f"Mean train loss: {np.mean(train_losses)} | Mean val loss: {np.mean(val_losses)}")
+    print()
+
+
+#
+# Plot training and validation losses
+plt.figure(figsize=(10, 6))
+plt.plot(h_sizes, xfold_train_losses, 'b-o', label='Training Loss', linewidth=2)
+plt.plot(h_sizes, xfold_val_losses, 'r--s', label='Validation Loss', linewidth=2)
+
+# Customize the plot
+plt.title('Training vs Validation Loss by Number of Timesteps', fontsize=14)
+plt.xlabel('Number of Timesteps', fontsize=12)
+plt.ylabel('Loss', fontsize=12)
+plt.xticks(h_sizes)  # Ensure all h_sizes are shown on x-axis
+plt.grid(True, linestyle='--', alpha=0.7)
+plt.legend(fontsize=12)
+
+plt.tight_layout()
+plt.show()
