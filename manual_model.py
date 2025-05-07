@@ -135,10 +135,31 @@ plt.show()
 #
 # visualize ground truth against model's predictions
 full_dat, _ = create_data(X, history_size)
+print(full_dat)
 model_dat = mdl.call(full_dat).numpy()
-model_dat = (model_dat * X_std) + X_mean # scale data back
+model_dat_scaled = (model_dat * X_std) + X_mean # scale data back
 
 plt.plot(dat, label='Original data')
-plt.plot(np.append(range(history_size), model_dat), 'r--', label='Model predictions')
+plt.plot(np.append(range(history_size), model_dat_scaled), 'r--', label='Model predictions')
+
+last_prediction = model_dat[-1]
+data, _ = create_data(X + last_prediction, history_size)
+
+step = 0
+predictions = []
+n_step_to_predict = 200
+while step < n_step_to_predict:
+    prediction = mdl.call(np.array([data[-1]])).numpy()[0]
+    predictions.append(prediction)
+
+    last_prediction = prediction
+    data, _ = create_data(X + last_prediction, history_size)
+
+    step += 1
+
+predictions_scaled = (np.array(predictions) * X_std) + X_mean
+
+# plt.plot(np.append(range(1000), predictions_scaled), 'r--', label='Model future predictions')
+
 plt.legend()
 plt.show()
