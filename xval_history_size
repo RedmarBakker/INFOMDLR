@@ -79,7 +79,7 @@ epochs = 30
 n_folds = 10
 train_size = int(len(X) * (1-(1/n_folds)))
 val_size = int(len(X) * (1/n_folds))
-h_sizes = range(1, 51, 5) # range(1,6)
+h_sizes = [1] + list(range(5, 51, 5)) # [1, 5, ..., 50]
 xfold_train_losses = []
 xfold_val_losses = []
 for history_size in h_sizes:
@@ -93,13 +93,10 @@ for history_size in h_sizes:
         # print(f" - Fold {i+1}")
 
         # create train/val split
-        x_train = np.append(x_all[(i*val_size)+val_size:], x_all[:i*val_size])
-        y_train = np.append(y_all[(i*val_size)+val_size:], y_all[:i*val_size])
+        x_train = tf.concat([x_all[:i*val_size], x_all[(i*val_size)+val_size:]], axis=0)
+        y_train = tf.concat([y_all[:i*val_size], y_all[(i*val_size)+val_size:]], axis=0)
         x_val = x_all[i*val_size:(i*val_size)+val_size]
         y_val = y_all[i*val_size:(i*val_size)+val_size]
-
-        x_train, y_train = x_all[:train_size], y_all[:train_size]
-        x_val, y_val = x_all[train_size:], y_all[train_size:]
 
         # batch the training data
         dataset = tf.data.Dataset.from_tensor_slices((x_train, y_train))
