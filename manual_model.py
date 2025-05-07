@@ -73,21 +73,23 @@ def train_step(trainx, trainy):
     # forward
     with tf.GradientTape() as tape:
         y_pred = mdl.call(trainx, training=True)
-        loss = tf.keras.losses.MSE(trainy, y_pred) * 100 # 100x makes it more readable
+        loss = tf.keras.losses.MSE(trainy, y_pred)
 
     # update weights
     grads = tape.gradient(loss, mdl.trainable_variables)
     optimizer.apply_gradients(zip(grads, mdl.trainable_variables))
 
     # update loss/accuracy
+    loss = (tf.sqrt(loss) * X_std) + X_mean # back to original units to make loss more interpretable
     train_loss(loss)
 
 def val_step(valx, valy):
     # forward
     y_pred = mdl.call(valx)
-    loss = tf.keras.losses.MSE(valy, y_pred) * 100
+    loss = tf.keras.losses.MSE(valy, y_pred)
 
     # update loss/accuracy
+    loss = (tf.sqrt(loss) * X_std) + X_mean
     val_loss(loss)
 
 #
@@ -135,31 +137,60 @@ plt.show()
 #
 # visualize ground truth against model's predictions
 full_dat, _ = create_data(X, history_size)
-print(full_dat)
 model_dat = mdl.call(full_dat).numpy()
 model_dat_scaled = (model_dat * X_std) + X_mean # scale data back
 
-plt.plot(dat, label='Original data')
-plt.plot(np.append(range(history_size), model_dat_scaled), 'r--', label='Model predictions')
+fig, axs = plt.subplots(nrows=1, ncols=2)
+axs[0].plot(dat, label='Original data')
+axs[0].plot(np.append([0]*history_size, model_dat_scaled), 'r--', label='Model predictions')
+axs[0].legend()
 
-last_prediction = model_dat[-1]
-data, _ = create_data(X + last_prediction, history_size)
+# visualize difference between the two
+diff = dat[history_size:] - model_dat
+axs[1].plot(np.append([0]*history_size, diff))
+plt.tight_layout()
+plt.show()
 
-step = 0
-predictions = []
-n_step_to_predict = 200
-while step < n_step_to_predict:
-    prediction = mdl.call(np.array([data[-1]])).numpy()[0]
-    predictions.append(prediction)
 
-    last_prediction = prediction
-    data, _ = create_data(X + last_prediction, history_size)
+# 
+# predict 200 points recursively
+randid = np.random.randint(0, full_dat.shape[0]) # we pick a random point from the original data to start with
+current = tf.reshape(full_dat[randid], [1, history_size, 1]) # stupid
+current = tf.cast(current, dtype=tf.float32)
+result = []
+for i in range(200):
+    print(f"Predicting point {i+1}...")
 
-    step += 1
+    # save prediction
+    pred = mdl.call(current)
+    result.append(tf.reshape(pred, [-1]).numpy())
 
-predictions_scaled = (np.array(predictions) * X_std) + X_mean
+    # update current
+    current = current[:,1:,:] # trim off the first element
+    current = tf.concat([current, tf.reshape(pred, [1,1,1])], axis=1) # append the prediction
+
+plt.plot(result, 'r')
+plt.tight_layout()
+plt.show()
+
+# last_prediction = model_dat[-1]
+# data, _ = create_data(X + last_prediction, history_size)
+
+# step = 0
+# predictions = []
+# n_step_to_predict = 200
+# while step < n_step_to_predict:
+#     prediction = mdl.call(np.array([data[-1]])).numpy()[0]
+#     predictions.append(prediction)
+
+#     last_prediction = prediction
+#     data, _ = create_data(X + last_prediction, history_size)
+
+#     step += 1
+
+# predictions_scaled = (np.array(predictions) * X_std) + X_mean
 
 # plt.plot(np.append(range(1000), predictions_scaled), 'r--', label='Model future predictions')
 
-plt.legend()
-plt.show()
+# plt.legend()
+# plt.show()
