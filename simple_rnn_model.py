@@ -3,7 +3,6 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import matplotlib.pyplot as plt
-import json
 
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
@@ -118,34 +117,6 @@ for i in range(epochs):
 
 
 #
-# load the test data
-test_dataset = scipy.io.loadmat('Xtest.mat')
-test_dat = np.array(test_dataset['Xtest'])
-
-# normalize & create data
-X_test = (test_dat - X_mean) / X_std
-x_test, y_test = create_data(X_test, history_size)
-
-# we want to report MSE and MAE in original units, so let's do that
-y_test_pred = mdl.call(x_test)
-y_test_pred = (y_test_pred * X_std) + X_mean
-y_test = (y_test * X_std) + X_mean
-test_loss_MSE = np.mean(tf.keras.losses.MSE(y_test, y_test_pred))
-test_loss_MAE = np.mean(tf.keras.losses.MAE(y_test, y_test_pred))
-print()
-print("Evaluating test dataset...")
-print(f"MSE: {test_loss_MSE} | MAE: {test_loss_MAE}")
-
-diff = y_test - y_test_pred
-plt.figure(figsize=(10, 6))
-plt.title('Difference Between Test data and Model Predictions', fontsize=14, pad=20)
-plt.ylabel('Difference', fontsize=12)
-plt.plot(np.append([0]*history_size, diff))
-plt.tight_layout()
-plt.show()
-
-
-#
 # visualize training arc
 plt.figure(figsize=(10, 6))
 plt.plot(train_losses, label='Training Loss', color='blue', linewidth=2, marker='o')
@@ -172,11 +143,6 @@ full_dat, _ = create_data(X, history_size)
 model_dat = mdl.call(full_dat).numpy()
 model_dat_scaled = (model_dat * X_std) + X_mean # scale data back
 
-# fig, axs = plt.subplots(nrows=1, ncols=2)
-# axs[0].plot(dat, label='Original data')
-# axs[0].plot(np.append([0]*history_size, model_dat_scaled), 'r--', marker='o', label='Model predictions')
-# axs[0].legend()
-
 # visualize difference between the two
 diff = dat[history_size:] - model_dat_scaled
 # axs[1].plot(np.append([0]*history_size, diff))
@@ -184,15 +150,19 @@ plt.figure(figsize=(10, 6))
 plt.title('Difference Between Ground Truth and Model Predictions', fontsize=14, pad=20)
 plt.ylabel('Difference', fontsize=12)
 plt.plot(np.append([0]*history_size, diff))
+plt.legend(fontsize=12)
 plt.tight_layout()
 plt.show()
 
 
 # 
 # predict 200 points recursively
-# randid = np.random.randint(0, full_dat.shape[0]) # we pick a random point from the original data to start with
-# current = tf.reshape(full_dat[randid], [1, history_size, 1]) # stupid
-current = tf.reshape(full_dat[-1], [1,history_size,1])
+
+# load the test data
+test_dataset = scipy.io.loadmat('Xtest.mat')
+test_dat = np.array(test_dataset['Xtest'])
+
+current = tf.reshape(full_dat[-1], [1,history_size,1]) # start at final point of training data
 current = tf.cast(current, dtype=tf.float32)
 result = []
 for i in range(200):
@@ -207,32 +177,15 @@ for i in range(200):
     current = current[:,1:,:] # trim off the first element
     current = tf.concat([current, tf.reshape(pred, [1,1,1])], axis=1) # append the prediction
 
+test_loss_MSE = np.mean(np.square(test_dat - np.array(result)))
+test_loss_MAE = np.mean(np.abs(test_dat - np.array(result)))
+print("Evaluating test dataset...")
+print(f"MSE: {test_loss_MSE} | MAE: {test_loss_MAE}")
 
 plt.figure(figsize=(10, 6))
-plt.title('Model predictions 200 points ahead', fontsize=14, pad=20)
-plt.plot(np.append(dat, result), 'r')
-plt.axvline(len(full_dat), color='k', linestyle='--')
+plt.title('Model Predictions vs. Actual Test Data', fontsize=14, pad=20)
+plt.plot(test_dat, 'b', label='Test Data')
+plt.plot(result, 'r--', label='Model Predictions')
+plt.legend(fontsize=12)
 plt.tight_layout()
 plt.show()
-
-# last_prediction = model_dat[-1]
-# data, _ = create_data(X + last_prediction, history_size)
-
-# step = 0
-# predictions = []
-# n_step_to_predict = 200
-# while step < n_step_to_predict:
-#     prediction = mdl.call(np.array([data[-1]])).numpy()[0]
-#     predictions.append(prediction)
-
-#     last_prediction = prediction
-#     data, _ = create_data(X + last_prediction, history_size)
-
-#     step += 1
-
-# predictions_scaled = (np.array(predictions) * X_std) + X_mean
-
-# plt.plot(np.append(range(1000), predictions_scaled), 'r--', label='Model future predictions')
-
-# plt.legend()
-# plt.show()
