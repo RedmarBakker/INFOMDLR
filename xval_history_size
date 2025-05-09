@@ -11,7 +11,8 @@ class LaserModel(tf.keras.Model):
     def __init__(self):
         super().__init__()
 
-        self.recurrent = layers.SimpleRNN(120, activation='relu', kernel_initializer='he_normal')
+        # self.recurrent = layers.SimpleRNN(120, activation='relu', kernel_initializer='he_normal')
+        self.recurrent = layers.LSTM(120, activation='relu', kernel_initializer='he_normal')
         self.dense = layers.Dense(120, activation='relu', kernel_initializer='he_normal')
         self.output_layer = layers.Dense(1)
 
@@ -34,7 +35,7 @@ def train_step(trainx, trainy):
     optimizer.apply_gradients(zip(grads, mdl.trainable_variables))
 
     # update loss/accuracy
-    loss = (tf.sqrt(loss) * X_std) + X_mean # back to original units to make loss more interpretable
+    loss = (tf.sqrt(loss) * X_std) # back to original units to make loss more interpretable
     train_loss(loss)
 
 def val_step(valx, valy):
@@ -43,7 +44,7 @@ def val_step(valx, valy):
     loss = tf.keras.losses.MSE(valy, y_pred)
 
     # update loss/accuracy
-    loss = (tf.sqrt(loss) * X_std) + X_mean
+    loss = (tf.sqrt(loss) * X_std)
     val_loss(loss)
 
 
@@ -76,10 +77,11 @@ X = (dat - X_mean) / X_std
 
 batch_size = 64
 epochs = 30
-n_folds = 10
+n_folds = 5
 train_size = int(len(X) * (1-(1/n_folds)))
 val_size = int(len(X) * (1/n_folds))
-h_sizes = [1] + list(range(5, 51, 5)) # [1, 5, ..., 50]
+# h_sizes = [1] + list(range(5, 51, 5)) # [1, 5, ..., 50]
+h_sizes = range(20, 31)
 xfold_train_losses = []
 xfold_val_losses = []
 for history_size in h_sizes:

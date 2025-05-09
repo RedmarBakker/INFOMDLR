@@ -3,13 +3,14 @@ import numpy as np
 import tensorflow as tf
 from keras import layers
 import matplotlib.pyplot as plt
+import json
 
 # load the training data
 dataset = scipy.io.loadmat('Xtrain.mat')
 dat = np.array(dataset['Xtrain'])
 
 batch_size = 64
-history_size = 20 # still need to tweak this!
+history_size = 22
 train_test_balance = 0.8
 
 def create_data(raw_dat, time_steps):
@@ -30,6 +31,8 @@ X_std = np.std(dat)
 X = (dat - X_mean) / X_std
 
 # create items+labels & shuffle them
+np.random.seed(seed=11)
+tf.random.set_seed(seed=11)
 train_size = int(len(X) * train_test_balance)
 x_all, y_all = create_data(X, history_size)
 shuffled_idxs = np.random.permutation(len(x_all))
@@ -50,6 +53,7 @@ class LaserModel(tf.keras.Model):
         super().__init__()
 
         self.recurrent = layers.SimpleRNN(120, activation='relu', kernel_initializer='he_normal')
+        # self.recurrent = layers.LSTM(256, activation='relu', kernel_initializer='he_normal')
         self.dense = layers.Dense(120, activation='relu', kernel_initializer='he_normal')
         self.output_layer = layers.Dense(1)
 
@@ -80,7 +84,7 @@ def train_step(trainx, trainy):
     optimizer.apply_gradients(zip(grads, mdl.trainable_variables))
 
     # update loss/accuracy
-    loss = (tf.sqrt(loss) * X_std) + X_mean # back to original units to make loss more interpretable
+    loss = (tf.sqrt(loss) * X_std) # back to original units to make loss more interpretable
     train_loss(loss)
 
 def val_step(valx, valy):
@@ -89,7 +93,7 @@ def val_step(valx, valy):
     loss = tf.keras.losses.MSE(valy, y_pred)
 
     # update loss/accuracy
-    loss = (tf.sqrt(loss) * X_std) + X_mean
+    loss = (tf.sqrt(loss) * X_std)
     val_loss(loss)
 
 #
@@ -111,6 +115,34 @@ for i in range(epochs):
     print(f"epoch: {i} | train loss: {train_loss.result()} | val loss: {val_loss.result()}")
     train_losses.append(train_loss.result())
     val_losses.append(val_loss.result())
+
+
+#
+# load the test data
+test_dataset = scipy.io.loadmat('Xtest.mat')
+test_dat = np.array(test_dataset['Xtest'])
+
+# normalize & create data
+X_test = (test_dat - X_mean) / X_std
+x_test, y_test = create_data(X_test, history_size)
+
+# we want to report MSE and MAE in original units, so let's do that
+y_test_pred = mdl.call(x_test)
+y_test_pred = (y_test_pred * X_std) + X_mean
+y_test = (y_test * X_std) + X_mean
+test_loss_MSE = np.mean(tf.keras.losses.MSE(y_test, y_test_pred))
+test_loss_MAE = np.mean(tf.keras.losses.MAE(y_test, y_test_pred))
+print()
+print("Evaluating test dataset...")
+print(f"MSE: {test_loss_MSE} | MAE: {test_loss_MAE}")
+
+diff = y_test - y_test_pred
+plt.figure(figsize=(10, 6))
+plt.title('Difference Between Test data and Model Predictions', fontsize=14, pad=20)
+plt.ylabel('Difference', fontsize=12)
+plt.plot(np.append([0]*history_size, diff))
+plt.tight_layout()
+plt.show()
 
 
 #
@@ -140,22 +172,27 @@ full_dat, _ = create_data(X, history_size)
 model_dat = mdl.call(full_dat).numpy()
 model_dat_scaled = (model_dat * X_std) + X_mean # scale data back
 
-fig, axs = plt.subplots(nrows=1, ncols=2)
-axs[0].plot(dat, label='Original data')
-axs[0].plot(np.append([0]*history_size, model_dat_scaled), 'r--', label='Model predictions')
-axs[0].legend()
+# fig, axs = plt.subplots(nrows=1, ncols=2)
+# axs[0].plot(dat, label='Original data')
+# axs[0].plot(np.append([0]*history_size, model_dat_scaled), 'r--', marker='o', label='Model predictions')
+# axs[0].legend()
 
 # visualize difference between the two
 diff = dat[history_size:] - model_dat_scaled
-axs[1].plot(np.append([0]*history_size, diff))
+# axs[1].plot(np.append([0]*history_size, diff))
+plt.figure(figsize=(10, 6))
+plt.title('Difference Between Ground Truth and Model Predictions', fontsize=14, pad=20)
+plt.ylabel('Difference', fontsize=12)
+plt.plot(np.append([0]*history_size, diff))
 plt.tight_layout()
 plt.show()
 
 
 # 
 # predict 200 points recursively
-randid = np.random.randint(0, full_dat.shape[0]) # we pick a random point from the original data to start with
-current = tf.reshape(full_dat[randid], [1, history_size, 1]) # stupid
+# randid = np.random.randint(0, full_dat.shape[0]) # we pick a random point from the original data to start with
+# current = tf.reshape(full_dat[randid], [1, history_size, 1]) # stupid
+current = tf.reshape(full_dat[-1], [1,history_size,1])
 current = tf.cast(current, dtype=tf.float32)
 result = []
 for i in range(200):
@@ -163,13 +200,18 @@ for i in range(200):
 
     # save prediction
     pred = mdl.call(current)
-    result.append(tf.reshape(pred, [-1]).numpy())
+    scaled_res = (tf.reshape(pred, [-1]).numpy() * X_std) + X_mean
+    result.append(scaled_res)
 
     # update current
     current = current[:,1:,:] # trim off the first element
     current = tf.concat([current, tf.reshape(pred, [1,1,1])], axis=1) # append the prediction
 
-plt.plot(result, 'r')
+
+plt.figure(figsize=(10, 6))
+plt.title('Model predictions 200 points ahead', fontsize=14, pad=20)
+plt.plot(np.append(dat, result), 'r')
+plt.axvline(len(full_dat), color='k', linestyle='--')
 plt.tight_layout()
 plt.show()
 
