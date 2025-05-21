@@ -56,3 +56,28 @@ def load(filename):
 
     for name in file:
         return file.get(name)[()]
+
+def build_dataset():
+    X = []
+    y = []
+
+    for rest_set_name in rest_set_names:
+        X.append(load(rest_set_name))
+        y.append(0)
+
+    for math_set_name in math_set_names:
+        X.append(load(math_set_name))
+        y.append(1)
+
+    for motor_set_name in motor_set_names:
+        X.append(load(motor_set_name))
+        y.append(2)
+
+    for memory_set_name in memory_set_names:
+        X.append(load(memory_set_name))
+        y.append(3)
+
+    X = np.stack(X)  # shape: (num_samples, 248, 32520)
+    y = np.array(y)
+
+    return X, y
