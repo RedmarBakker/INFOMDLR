@@ -56,3 +56,14 @@ def load(filename):
 
     for name in file:
         return file.get(name)[()]
+    
+def z_norm(data):
+    normalized_data = data.astype(float).copy() #copy of original array
+
+    for i in range((data.shape[0])):
+        row = data[i,:]
+        mu = np.mean(row)
+        sigma = np.std(row)
+        normalized_data[i,:] = (row - mu) / sigma
+    
+    return normalized_data
