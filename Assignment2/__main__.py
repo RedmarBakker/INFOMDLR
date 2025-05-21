@@ -17,8 +17,6 @@ from models.transformer import build_transformer
 
 X, y = build_dataset()
 
-print(X.shape)
-
 transformer = build_transformer(X.shape[2])
 
 transformer.fit(X, y)

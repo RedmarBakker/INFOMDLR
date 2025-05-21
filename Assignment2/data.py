@@ -80,4 +80,17 @@ def build_dataset():
     X = np.stack(X)  # shape: (num_samples, 248, 32520)
     y = np.array(y)
 
+    # normalized_data = z_norm(rest1)
+
     return X, y
+    
+def z_norm(data):
+    normalized_data = data.astype(float).copy() #copy of original array
+
+    for i in range((data.shape[0])):
+        row = data[i,:]
+        mu = np.mean(row)
+        sigma = np.std(row)
+        normalized_data[i,:] = (row - mu) / sigma
+    
+    return normalized_data
