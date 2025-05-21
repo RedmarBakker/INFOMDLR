@@ -3,22 +3,20 @@
 # (c) Explain the choices of hyper-parameters of your model architecture and analyze their influence on the results (for both 2 types of classification). How they are selected?
 # (d) If there is a significant difference in training and testing accuracies, what could be a possible reason? What are the alternative models or approaches you would select? Select one and implement to further improve your results. Justify your choice.
 
+from data import load, rest_set_names, motor_set_names, memory_set_names, math_set_names
+from visualization import plot_dataset_as_meg, plot_dataset_as_lines
+from models.autoencoder import build_autoencoder, chunk_data, glue_chunks
+from models.transformer import build_transformer
 
-import h5py
+# plot_dataset_as_lines(load(rest_set_names[0]))
+# plot_dataset_as_meg(load(rest_set_names[0]))
+# plot_dataset_as_meg(load(motor_set_names[0]))
+# plot_dataset_as_meg(load(math_set_names[0]))
+# plot_dataset_as_meg(load(memory_set_names[0]))
 
-def get_dataset_name(filename_with_dir):
-    filename_without_dir = filename_with_dir.split('/')[-1]
-    temp = filename_without_dir.split('.')[:-1]
-    dataset_name = ''.join(temp)
+rest1 = load(rest_set_names[0])
 
-    return dataset_name
+build_transformer().summary()
 
-filename_path = "Intra/train/rest1059231.h5"
 
-with h5py.File(filename_path, 'r') as f:
-    dataset_name = get_dataset_name(filename_path)
-    matrix = f.get(dataset_name)[()]
-
-    print(type(matrix))
-    print(matrix.shape)
 
