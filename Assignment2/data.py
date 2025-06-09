@@ -12,6 +12,8 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import mne
 from matplotlib.animation import FuncAnimation
+from sklearn.utils import shuffle
+
 
 # Build the cross train dataset
 # Since the cross train dataset is too large to fit in memory, it has to be loaded in batches
@@ -139,40 +141,86 @@ def load(filename):
     for name in file:
         return file.get(name)[()]
 
-def build_intra_dataset():
+
+def z_norm(data):
+    normalized_data = data.astype(float).copy()  # copy of original array
+
+    for channel_id in range(data.shape[0]):
+        channel_data = data[channel_id, :]
+        mu = np.mean(channel_data)
+        sigma = np.std(channel_data)
+        normalized_data[channel_id, :] = (channel_data - mu) / sigma
+
+    return normalized_data
+
+def pre_process(data, frame_step_size = 1):
+    n_channels, n_values = data.shape[0], data.shape[1]
+    n_steps = math.ceil(n_values / frame_step_size)
+
+    processed_data = []
+
+    for channel_id in range(n_channels):
+        channel_data = data[channel_id, :]
+        averaged_steps = []
+
+        for step_id in range(n_steps):
+            start = step_id * frame_step_size
+            end = min((step_id + 1) * frame_step_size, n_values)
+            step_data = channel_data[start:end]
+            averaged_steps.append(np.mean(step_data))
+
+        processed_data.append(averaged_steps)
+
+    return np.array(processed_data)
+
+# step_size: the number of frames that will be averaged to make the data smaller
+def build_dataset(step_size=1):
     X = []
     y = []
 
-    for rest_set_name in intraTrain[0]:
-        X.append(load(rest_set_name))
+    for rest_set_name in rest_set_names:
+        X.append(z_norm(pre_process(load(rest_set_name), step_size)))
         y.append(0)
 
-    for math_set_name in intraTrain[1]:
-        X.append(load(math_set_name))
+    for math_set_name in math_set_names:
+        X.append(z_norm(pre_process(load(math_set_name), step_size)))
         y.append(1)
 
-    for motor_set_name in intraTrain[2]:
-        X.append(load(motor_set_name))
+    for motor_set_name in motor_set_names:
+        X.append(z_norm(pre_process(load(motor_set_name), step_size)))
         y.append(2)
 
-    for memory_set_name in intraTrain[3]:
-        X.append(load(memory_set_name))
+    for memory_set_name in memory_set_names:
+        X.append(z_norm(pre_process(load(memory_set_name), step_size)))
         y.append(3)
 
     X = np.stack(X)  # shape: (num_samples, 248, 35624)
     y = np.array(y)
 
-    # normalized_data = z_norm(rest1)
+    X, y = shuffle(X, y, random_state=42)
 
     return X, y
-    
-def z_norm(data):
-    normalized_data = data.astype(float).copy() #copy of original array
 
-    for i in range((data.shape[0])):
-        row = data[i,:]
-        mu = np.mean(row)
-        sigma = np.std(row)
-        normalized_data[i,:] = (row - mu) / sigma
-    
-    return normalized_data
+def create_cross_validation_sets(X, y, chunks=4):
+    chunk_size = X.shape[0] // chunks
+    cv_sets = []
+
+    for i in range(chunks):
+        for attempt in range(100):  # limit attempts to avoid infinite loop
+            val_start = i * chunk_size
+            val_end = (i + 1) * chunk_size
+
+            X_val = X[val_start:val_end]
+            y_val = y[val_start:val_end]
+
+            if all(label in y_val for label in range(4)):
+                X_train = np.concatenate((X[:val_start], X[val_end:]), axis=0)
+                y_train = np.concatenate((y[:val_start], y[val_end:]), axis=0)
+                cv_sets.append((X_train, y_train, X_val, y_val))
+                break
+            else:
+                X, y = shuffle(X, y, random_state=i * 100 + attempt)
+        else:
+            raise ValueError("Unable to create a validation set with all classes present after 100 attempts.")
+
+    return cv_sets
