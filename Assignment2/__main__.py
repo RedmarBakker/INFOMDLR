@@ -3,11 +3,19 @@
 # (c) Explain the choices of hyper-parameters of your model architecture and analyze their influence on the results (for both 2 types of classification). How they are selected?
 # (d) If there is a significant difference in training and testing accuracies, what could be a possible reason? What are the alternative models or approaches you would select? Select one and implement to further improve your results. Justify your choice.
 import numpy as np
+import os
+import tensorflow as tf
+from sklearn.model_selection import train_test_split
+import matplotlib
+# Use the TkAgg backend for matplotlib to avoid the need for a display
+matplotlib.use('TkAgg')
+from matplotlib import pyplot as plt
 
-from data import build_dataset
+from data import build_intra_dataset, z_norm, CrossSubjectDataGenerator, load
 from visualization import plot_dataset_as_meg, plot_dataset_as_lines
-from models.autoencoder import build_autoencoder, chunk_data, glue_chunks
+from models.autoencoder import build_autoencoder, chunk_data, glue_chunks, chunk_data_for_conv2d
 from models.transformer import build_transformer
+
 
 # plot_dataset_as_lines(load(rest_set_names[0]))
 # plot_dataset_as_meg(load(rest_set_names[0]))
@@ -15,11 +23,6 @@ from models.transformer import build_transformer
 # plot_dataset_as_meg(load(math_set_names[0]))
 # plot_dataset_as_meg(load(memory_set_names[0]))
 
-X, y = build_dataset()
-
-transformer = build_transformer(X.shape[2])
-
-transformer.fit(X, y)
 
 
 
