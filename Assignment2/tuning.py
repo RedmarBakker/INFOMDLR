@@ -148,4 +148,4 @@ def print_results_table(path="tuning_results/transformer_parameters.json"):
     print(tabulate(table, headers=headers, tablefmt="grid"))
 
 
-print_results_table()
+# print_results_table()

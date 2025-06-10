@@ -8,6 +8,7 @@ import glob
 import math
 import h5py
 import numpy as np
+import mne.filter
 import tensorflow as tf
 import matplotlib.pyplot as plt
 import mne
@@ -173,25 +174,66 @@ def pre_process(data, frame_step_size = 1):
 
     return np.array(processed_data)
 
+def downsample(sample, sfreq_new):
+    sfreq_original = 2043
+
+    if sample.ndim != 2:
+        raise ValueError(
+            f"Input shape must be 2D (n_channels, n_measurements)"
+            f"got shape {sample.shape}"
+        )
+
+    if sfreq_new <= 0 or sfreq_original <= 0:
+        raise ValueError("Sampling frequencies must be positive.")
+
+    #Standard resample factors
+    up_factor = 1.0
+    down_factor = 1.0
+
+    # Calculate the resampling factors
+    if sfreq_new == sfreq_original:
+        # No actual resampling needed, just pass through (or apply implicit filter)
+        print(f"Warning: New sampling frequency ({sfreq_new} Hz) is the same as "
+              f"original ({sfreq_original} Hz). No downsampling will occur, "
+              f"but filtering might still be applied.")
+    elif sfreq_new > sfreq_original:
+        # This is upsampling, calculate up factor, down is 1.0
+        up_factor = float(sfreq_new) / sfreq_original
+        down_factor = 1.0
+        print(f"Warning: New sampling frequency ({sfreq_new} Hz) is higher than "
+              f"original ({sfreq_original} Hz). Upsampling will occur.")
+    else:  # sfreq_new < sfreq_original, true downsampling
+        up_factor = 1.0
+        down_factor = float(sfreq_original) / sfreq_new
+
+    downsampled_data = mne.filter.resample(sample,
+                                           up=up_factor,
+                                           down=down_factor,
+                                           npad='auto',
+                                           verbose=False)
+    return downsampled_data
+
+
+
 # step_size: the number of frames that will be averaged to make the data smaller
-def build_dataset(step_size=1):
+def build_dataset(sfreq_new, step_size=1):
     X = []
     y = []
 
     for rest_set_name in rest_set_names:
-        X.append(z_norm(pre_process(load(rest_set_name), step_size)))
+        X.append(z_norm(downsample(load(rest_set_name), sfreq_new=sfreq_new)))
         y.append(0)
 
     for math_set_name in math_set_names:
-        X.append(z_norm(pre_process(load(math_set_name), step_size)))
+        X.append(z_norm(downsample(load(math_set_name), sfreq_new=sfreq_new)))
         y.append(1)
 
     for motor_set_name in motor_set_names:
-        X.append(z_norm(pre_process(load(motor_set_name), step_size)))
+        X.append(z_norm(downsample(load(motor_set_name), sfreq_new=sfreq_new)))
         y.append(2)
 
     for memory_set_name in memory_set_names:
-        X.append(z_norm(pre_process(load(memory_set_name), step_size)))
+        X.append(z_norm(downsample(load(memory_set_name), sfreq_new=sfreq_new)))
         y.append(3)
 
     X = np.stack(X)  # shape: (num_samples, 248, 35624)
