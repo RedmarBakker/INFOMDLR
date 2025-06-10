@@ -7,6 +7,7 @@
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import signal
 import mne
 from matplotlib.animation import FuncAnimation
 
@@ -62,19 +63,23 @@ def build_dataset():
     y = []
 
     for rest_set_name in rest_set_names:
-        X.append(load(rest_set_name))
+        temp = signal.decimate(load(rest_set_name),q=10)
+        X.append(z_norm(temp))
         y.append(0)
 
     for math_set_name in math_set_names:
-        X.append(load(math_set_name))
+        temp = signal.decimate(load(math_set_name),q=10)
+        X.append(z_norm(temp))
         y.append(1)
 
     for motor_set_name in motor_set_names:
-        X.append(load(motor_set_name))
+        temp = signal.decimate(load(motor_set_name),q=10)
+        X.append(z_norm(temp))
         y.append(2)
 
     for memory_set_name in memory_set_names:
-        X.append(load(memory_set_name))
+        temp = signal.decimate(load(memory_set_name),q=10)
+        X.append(z_norm(temp))
         y.append(3)
 
     X = np.stack(X)  # shape: (num_samples, 248, 32520)
