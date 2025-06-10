@@ -11,19 +11,19 @@ def plot_dataset_as_lines(data):
     # === Plot a few channels ===
     plt.figure(figsize=(15, 6))
     for i in range(248):  # Plot first 5 sensors
-        plt.plot(time, data[i] * 1e15 + i * 300, label=f'Sensor {i} (offset)', linewidth=0.8)
+        plt.plot(time, data[i] * 1e15, label=f'Sensor {i} (offset)', linewidth=0.8)
         # Multiplied by 1e15 to convert to femtoTesla
 
     plt.xlabel('Time (s)')
     plt.ylabel('Amplitude + Offset (fT)')
-    plt.title('MEG Sensor Signals (first 5 channels)')
+    plt.title('MEG Sensor Signals')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
     plt.show()
 
 
-def plot_dataset_as_meg(data):
+def plot_dataset_as_meg(data, frame=1):
     n_channels, n_times = data.shape
 
     sfreq = 2048
@@ -50,7 +50,7 @@ def plot_dataset_as_meg(data):
     info.set_montage(montage)
     info.set_channel_types({name: 'mag' for name in ch_names})
 
-    first_frame = data[:, :1]
+    first_frame = data[:, frame-1:frame]
     evoked = mne.EvokedArray(first_frame, info)
     evoked.plot_topomap(times=0, ch_type='mag', size=4.0 ,time_format='', units='fT')
 
