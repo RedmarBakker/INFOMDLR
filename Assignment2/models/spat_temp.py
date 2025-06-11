@@ -6,16 +6,24 @@ def temp_block(input, filters= 16, dropout = 0.0, l2fac = 0.0):
 
     #input = keras.layers.Input(shape=input_shape)
     reguliser = keras.regularizers.L2(l2fac) if l2fac > 0.0 else None
-    x = keras.layers.Conv2D(filters, kernel_size=(1, 1), strides=(1,2), padding='same', data_format='channels_last', kernel_regularizer=reguliser)(input) #CHANGED STRIDE from 1,2 to 1,4
-    x = keras.layers.BatchNormalization(axis=1)(x)
+    x = keras.layers.Conv2D(filters, kernel_size=(1, 2), strides=(1,2),
+                            padding='same', data_format='channels_last',
+                            kernel_regularizer=reguliser)(input)
+    x = keras.layers.BatchNormalization()(x)
     x = keras.layers.Activation('relu')(x)
-    # x = keras.layers.Dropout(rate = 0.5)(x)
+
+    if dropout > 0.0:
+        x = keras.layers.Dropout(dropout)(x)
+
     # Residual block definition
     def residual_block(input_tensor, dropout = 0.0, reguliser = None):
-        residual = keras.layers.Conv2D(filters, kernel_size=(1, 3), strides=(1,1), dilation_rate=(1,1), padding="same", activation='relu', data_format='channels_last', kernel_regularizer=reguliser)(input_tensor)
-        norm = keras.layers.BatchNormalization(axis=1)(residual)
-        output =  keras.layers.Add()([input_tensor, norm])
+        residual = keras.layers.Conv2D(filters, kernel_size=(1, 3), strides=(1,1),
+                                       padding="same", data_format='channels_last',
+                                       kernel_regularizer=reguliser)(input_tensor)
+        norm = keras.layers.BatchNormalization()(residual)
+        output = keras.layers.Add()([input_tensor, norm])
         output = keras.layers.Activation('relu')(output)
+
         if dropout > 0:
             output = keras.layers.Dropout(dropout)(output)
 
@@ -28,8 +36,6 @@ def temp_block(input, filters= 16, dropout = 0.0, l2fac = 0.0):
     return x
 
 def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.0):
-    print(f"Input shape : {input_shape}")
-    print(f"Expected (n_channels, n_measurements)")
 
     num_sens = input_shape[0]
     num_t = input_shape[1]
@@ -39,10 +45,14 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
     
     reshaped_input = keras.layers.Reshape((num_sens, num_t, 1))(input)
 
-    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),data_format='channels_last', kernel_regularizer=reguliser)(reshaped_input)
-    if dropout > 0:
+    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),
+                            data_format='channels_last',
+                            kernel_regularizer=reguliser)(reshaped_input)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.Activation('relu')(x)
+
+    if dropout > 0.0:
         x = keras.layers.Dropout(dropout)(x)
-    #spat_em_out = keras.layers.Reshape((embed_dim, num_t))(x)
 
     for _ in range(3):
         x = temp_block(x, filters=embed_dim, dropout=dropout)
@@ -61,7 +71,6 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
     
     optim = keras.optimizers.Adam(learning_rate=0.001)
     model.compile(optimizer=optim,loss="sparse_categorical_crossentropy",metrics=["accuracy"])
-    model.summary()
     return model
 
 
