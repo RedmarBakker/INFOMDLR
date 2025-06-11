@@ -6,13 +6,13 @@ def temp_block(input, filters= 16, dropout = 0.0, l2fac = 0.0):
 
     #input = keras.layers.Input(shape=input_shape)
     reguliser = keras.regularizers.L2(l2fac) if l2fac > 0.0 else None
-    x = keras.layers.Conv2D(filters, kernel_size=(1, 1), strides=(1,2), padding='same', data_format='channels_first', kernel_regularizer=reguliser)(input) #CHANGED STRIDE from 1,2 to 1,4
+    x = keras.layers.Conv2D(filters, kernel_size=(1, 1), strides=(1,2), padding='same', data_format='channels_last', kernel_regularizer=reguliser)(input) #CHANGED STRIDE from 1,2 to 1,4
     x = keras.layers.BatchNormalization(axis=1)(x)
     x = keras.layers.Activation('relu')(x)
     # x = keras.layers.Dropout(rate = 0.5)(x)
     # Residual block definition
     def residual_block(input_tensor, dropout = 0.0, reguliser = None):
-        residual = keras.layers.Conv2D(filters, kernel_size=(1, 3), strides=(1,1), dilation_rate=(1,1), padding="same", activation='relu', data_format='channels_first', kernel_regularizer=reguliser)(input_tensor)
+        residual = keras.layers.Conv2D(filters, kernel_size=(1, 3), strides=(1,1), dilation_rate=(1,1), padding="same", activation='relu', data_format='channels_last', kernel_regularizer=reguliser)(input_tensor)
         norm = keras.layers.BatchNormalization(axis=1)(residual)
         output =  keras.layers.Add()([input_tensor, norm])
         output = keras.layers.Activation('relu')(output)
@@ -27,9 +27,6 @@ def temp_block(input, filters= 16, dropout = 0.0, l2fac = 0.0):
 
     return x
 
-
-
-
 def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.0):
     print(f"Input shape : {input_shape}")
     print(f"Expected (n_channels, n_measurements)")
@@ -40,10 +37,9 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
     input = keras.layers.Input(shape=input_shape) #1 is for the channels
     reguliser = keras.regularizers.L2(l2fac) if l2fac > 0.0 else None
     
-    reshaped_input = keras.layers.Reshape((1, num_sens, num_t))(input)
-    print(reshaped_input.shape)
+    reshaped_input = keras.layers.Reshape((num_sens, num_t, 1))(input)
 
-    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),data_format='channels_first', kernel_regularizer=reguliser)(reshaped_input)
+    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),data_format='channels_last', kernel_regularizer=reguliser)(reshaped_input)
     if dropout > 0:
         x = keras.layers.Dropout(dropout)(x)
     #spat_em_out = keras.layers.Reshape((embed_dim, num_t))(x)
@@ -52,12 +48,12 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
         x = temp_block(x, filters=embed_dim, dropout=dropout)
     
     # Last convolution (1x1) and Flatten
-    x_reduced_channels = keras.layers.Conv2D(filters=1, kernel_size=(1,1), data_format='channels_first', kernel_regularizer=reguliser)(x)
+    x_reduced_channels = keras.layers.Conv2D(filters=1, kernel_size=(1,1), data_format='channels_last', kernel_regularizer=reguliser)(x)
     x = keras.layers.BatchNormalization()(x_reduced_channels)
     x = keras.layers.Activation('relu')(x)
-    x = keras.layers.Flatten(name='flatten_features', data_format='channels_first')(x)
+    x = keras.layers.Flatten(name='flatten_features', data_format='channels_last')(x)
 
-    x = keras.layers.Dense(128, name='fc1', activation='relu')(x)
+    x = keras.layers.Dense(64, name='fc1', activation='relu')(x)
 
     output_classification = keras.layers.Dense(4, activation='softmax', name='output_softmax')(x)
 
@@ -77,7 +73,7 @@ def spat_lstm(input_shape = (248, 7125), embed_dim = 8):
     reshaped_input = keras.layers.Reshape((1, num_sens, num_t))(input)
     print(reshaped_input.shape)
 
-    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),data_format='channels_first')(reshaped_input) #new shape:(None,embed_dim,1,timesteps)
+    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),data_format='channels_last')(reshaped_input) #new shape:(None,embed_dim,1,timesteps)
 
     x = keras.layers.Reshape(target_shape= (embed_dim, num_t))(x) #get rid of 1
     #x = keras.layers.Reshape(target_shape= (num_t,embed_dim)) #shape for LSTM

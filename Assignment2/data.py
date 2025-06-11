@@ -21,78 +21,92 @@ from sklearn.utils import shuffle
 # Since the cross train dataset is too large to fit in memory, it has to be loaded in batches
 
 # Data generator class for cross-subject training:
-class CrossSubjectDataGenerator(tf.keras.utils.Sequence):
+class DataGenerator(tf.keras.utils.Sequence):
     def __init__(self, filepaths,
-                 chunk_size, batch_size,
+                 batch_size, new_sfreq,
                  shuffle=True, **kwargs
                  ):
         super().__init__(**kwargs)
         self.filepaths = filepaths
-        self.chunk_size = chunk_size
         self.batch_size = batch_size
+        self.new_sfreq = new_sfreq
         self.shuffle = shuffle
 
-        # This list will store references to individual chunks (file index, start/end time)
-        self._all_chunk_references = []
+        self.label_patterns = {
+            "rest": 0,
+            "task_story_math": 1,
+            "task_motor": 2,
+            "task_working_memory": 3
+        }
 
-        # Populate _all_chunk_references by inspecting each file's metadata
+        # This list will store references to the files (file index, label)
+        self._all_sample_references = []
+
+        # Enumerate over all filepaths and create references
         for filepath_idx, filepath in enumerate(self.filepaths):
-            try:
-                # Use h5py to get shape without loading full data
-                with h5py.File(filepath, 'r') as f:
-                    data_name = list(f.keys())[0]  # Assumes one dataset per .h5 file
-                    # Assuming data is (channels, total_measurements)
-                    _, total_measurements = f[data_name].shape
-            except Exception as e:
-                print(f"Error reading metadata from {filepath}: {e}. Skipping file.")
+            file_basename = os.path.basename(filepath)
+            file_label = -1
+            found_label = False
+            for pattern, label_val in self.label_patterns.items():
+                if file_basename.startswith(pattern):
+                    file_label = label_val
+                    found_label = True
+                    break
+
+            if not found_label:
+                print(f"Warning: Could not determine label for file {filepath}. Skipping.")
                 continue
 
-            n_chunks_in_file = total_measurements // self.chunk_size
-            for i in range(n_chunks_in_file):
-                self._all_chunk_references.append({
-                    'filepath_idx': filepath_idx,  # Index into self.filepaths list
-                    'start_time_idx': i * self.chunk_size,
-                    'end_time_idx': (i + 1) * self.chunk_size
-                })
+            # We don't need to inspect total_measurements here, as we'll downsample the whole thing
+            self._all_sample_references.append({
+                'filepath_idx': filepath_idx,
+                'label': file_label
+            })
 
-        #Shuffle all indices after each epoch to prevent overfitting
-        self.on_epoch_end()
+            self.on_epoch_end()  # Initialize indices and shuffle
 
     def on_epoch_end(self):
         # Shuffle indices at the end of each epoch
-        self.indices = np.arange(len(self._all_chunk_references))
+        self.indices = np.arange(len(self._all_sample_references))
         if self.shuffle:
             np.random.shuffle(self.indices)
 
     def __len__(self):
-        return math.ceil(len(self._all_chunk_references) / self.batch_size)
+        return math.ceil(len(self._all_sample_references) / self.batch_size)
 
     def __getitem__(self, idx):
         indices = self.indices[idx * self.batch_size:(idx + 1) * self.batch_size]
-        X_batch_chunks = []
 
-        loaded_file_cache = {}  # Simple cache for this __getitem__ call
+        X_batch_samples = []
+        y_batch_labels = []
 
         for ref_idx in indices:
-            ref = self._all_chunk_references[ref_idx]
+            ref = self._all_sample_references[ref_idx]
             filepath = self.filepaths[ref['filepath_idx']]
 
-            if filepath not in loaded_file_cache:
-                file_data = load(filepath)
-                # Ensure data is 2D (channels, time_steps) if load() returns (1, C, t)
-                if file_data.ndim == 3 and file_data.shape[0] == 1:
-                    file_data = file_data.squeeze(axis=0)
-                znormdata = z_norm(file_data)
-                loaded_file_cache[filepath] = znormdata
+            # --- Load the raw full subject data ---
+            raw_subject_data = load(filepath)  # Shape: (n_channels, original_n_measurements)
 
-            full_data_from_file = loaded_file_cache[filepath]
+            # Ensure data is 2D (channels, time_steps) if load() returns (1, C, t)
+            if raw_subject_data.ndim == 3 and raw_subject_data.shape[0] == 1:
+                raw_subject_data = raw_subject_data.squeeze(axis=0)  # (n_channels, original_n_measurements)
 
-            chunk = full_data_from_file[:, ref['start_time_idx']: ref['end_time_idx']]
-            chunk_reshaped = chunk.reshape(chunk.shape[0], chunk.shape[1], 1)  # (num_channels, chunk_size, 1)
-            X_batch_chunks.append(chunk_reshaped)
+            # --- Downsample the subject data ---
+            downsampled_subject_data = downsample(
+                raw_subject_data, self.new_sfreq
+            )  # Shape: (n_channels, new_n_measurements)
 
-        X_batch = np.stack(X_batch_chunks)
-        return X_batch, X_batch  # For autoencoder
+            # --- Z-normalize the downsampled data ---
+            # This is applied to the whole downsampled subject's recording (per channel)
+            normalized_subject_data = z_norm(downsampled_subject_data)  # Shape: (n_channels, new_n_measurements)
+
+            X_batch_samples.append(normalized_subject_data)
+            y_batch_labels.append(ref['label'])
+
+        X_batch = np.stack(X_batch_samples)  # Shape: (batch_size, n_channels, new_n_measurements, 1)
+        y_batch = np.array(y_batch_labels)  # Shape: (batch_size,)
+
+        return X_batch, y_batch
 
 
 # Build the intra train dataset
@@ -143,6 +157,21 @@ def load(filename):
     for name in file:
         return file.get(name)[()]
 
+def load_files(directory_path, file_extension='.h5'):
+    if not os.path.isdir(directory_path):
+        raise ValueError(f"Directory not found: {directory_path}")
+
+    all_filepaths = []
+    # Use os.walk to find files in subdirectories too
+    for root, _, files in os.walk(directory_path):
+        for file in files:
+            if file.endswith(file_extension):
+                all_filepaths.append(os.path.join(root, file))
+
+    # Sort file paths for consistent order before splitting (important for reproducibility without random_state)
+    all_filepaths.sort()
+
+    return all_filepaths
 
 def z_norm(data):
     normalized_data = data.astype(float).copy()  # copy of original array
@@ -267,3 +296,5 @@ def create_cross_validation_sets(X, y, chunks=4):
             raise ValueError("Unable to create a validation set with all classes present after 100 attempts.")
 
     return cv_sets
+
+
