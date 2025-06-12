@@ -45,7 +45,8 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
     
     reshaped_input = keras.layers.Reshape((num_sens, num_t, 1))(input)
 
-    x = keras.layers.Conv2D(filters=embed_dim, kernel_size= (248,1),
+    x = keras.layers.Conv2D(filters=1, kernel_size= (16,1),
+                            strides=(16,1), padding='same',
                             data_format='channels_last',
                             kernel_regularizer=reguliser)(reshaped_input)
     x = keras.layers.BatchNormalization()(x)
@@ -71,6 +72,7 @@ def build_spat_temp_model(input_shape, embed_dim = 16, dropout = 0.0, l2fac = 0.
     
     optim = keras.optimizers.Adam(learning_rate=0.001)
     model.compile(optimizer=optim,loss="sparse_categorical_crossentropy",metrics=["accuracy"])
+    model.summary()
     return model
 
 
