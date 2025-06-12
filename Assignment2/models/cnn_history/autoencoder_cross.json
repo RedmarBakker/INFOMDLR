@@ -1,0 +1,11 @@
+{
+    "val_loss (epoch)": [
+        1.0839923620224,
+        56
+    ],
+    "val_accuracy (epoch)": [
+        0.5,
+        55
+    ],
+    "model": "cross"
+}

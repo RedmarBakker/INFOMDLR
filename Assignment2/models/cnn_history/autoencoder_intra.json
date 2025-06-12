@@ -1,0 +1,11 @@
+{
+    "val_loss (epoch)": [
+        1.2723997831344604,
+        26
+    ],
+    "val_accuracy (epoch)": [
+        0.5,
+        23
+    ],
+    "model": "intra"
+}
