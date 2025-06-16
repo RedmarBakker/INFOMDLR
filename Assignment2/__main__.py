@@ -4,14 +4,19 @@
 # (d) If there is a significant difference in training and testing accuracies, what could be a possible reason? What are the alternative models or approaches you would select? Select one and implement to further improve your results. Justify your choice.
 import numpy as np
 from sklearn.model_selection import train_test_split
+import os
+import keras
+import math
+import json
 import matplotlib
+from itertools import chain
 # Use the TkAgg backend for matplotlib to avoid the need for a display
 matplotlib.use('TkAgg')
 from matplotlib import pyplot as plt
 
-from data import load_files, DataGenerator
+from data import z_norm, load, load_files, extract_patches, DataGenerator, glue_chunks, CustomAccuracyLossCheckpoint
 from visualization import plot_dataset_as_meg, plot_dataset_as_lines
-from models.autoencoder import build_autoencoder, chunk_data, glue_chunks, chunk_data_for_conv2d
+from models.autoencoder import build_autoencoder, chunk_data, chunk_data_for_conv2d
 from models.transformer import build_transformer
 from models.spat_temp import build_spat_temp_model
 
@@ -22,74 +27,147 @@ from models.spat_temp import build_spat_temp_model
 # plot_dataset_as_meg(load(math_set_names[0]))
 # plot_dataset_as_meg(load(memory_set_names[0]))
 
-model = 'cross' # or 'intra'
-match model:
-    case 'intra':
-        filepath = './intra/train'
-    case 'cross':
-        filepath = './cross/train'
-    case _:
-        raise ValueError(f"Unknown training set: {model}")
 
-
-# Train-test split
-train_files, val_files = train_test_split(load_files(filepath),test_size=0.18,
-                                          random_state=42)
 
 # ---- TRAINING ----
-# Steps (blijf een stap toepassen tot het model underfit,
-# daarna naar de volgende stap:
-# paper model --> overfits despite regularization (0.5 dropout, l2 X, TA: 1, VA: .25)
-# Misschien moet je soms de dropout verlagen als je het model minder complex maakt.
-# TODO decrease model complexity (in the following order):
-# 1. decreasing temporal blocks (3->2->etc.)
-# 2. reduce the number of filters (16->12->8-> etc.)
-# 3. reduce the number of residual blocks (4->2->etc.)
+# filepaths = ["./Intra/train", "./Intra/test", "./Cross/train",
+#              "./Cross/test1", "./Cross/test2", "./Cross/test3"]
+# train_files = []
+# test_files = []
+# for i, filepath in enumerate(filepaths):
+#     loaded = load_files(filepath)
+#
+#     if 'train' in filepath:
+#         train_files.append(loaded)
+#     elif 'test' in filepath:
+#         test_files.append(loaded)
+#
+#
+# train_flattened = list(chain.from_iterable(train_files))
+# test_flattened = list(chain.from_iterable(test_files))
+#
+# all_files = train_flattened + test_flattened
+#
+# # print(f"Nr of training files: {len(train_flattened)}")
+# # print(f"Nr of testing files: {len(test_flattened)}")
+# # print(f"Total number of files: {len(train_flattened) + len(test_flattened)}")
+#
+# # Apply z-norm to the
+# for subject in all_files:
+#     data = load(subject)
+#     highest = -np.inf
+#     lowest = np.inf
+#
+#     #normalised = z_norm(data)
+#
+#     for channel in data:
+#         if np.max(channel) > highest:
+#             highest = np.max(channel)
+#         if np.min(channel) < lowest:
+#             lowest = np.min(channel)
+#
+# print(f"Highest value: {highest}\n"
+#       f"Lowest value: {lowest}")
 
+# ---- TRAINING SETUP ----
+# hyperparameters
+EPOCHS = 100
+BATCH_SIZE = 32
 
-frequencies = [500, 250]
-for freq in frequencies:
+# Process data
+data = 'intra' # or 'cross'
+match data:
+    case 'intra':
+        filepath = "./Intra/train"
+    case 'cross':
+        filepath = "./Cross/train"
+    case _:
+        raise ValueError(f"Unknown data type: {data}")
 
-    # hyperparameters
-    EPOCHS = 100
-    BATCH_SIZE = 32
-    DOWNSAMPLE_FREQ = freq
+# Collect all training files
+all_files = []
+for root, _, files in os.walk(filepath):
+    for file in files:
+        if file.endswith('.h5'):
+            all_files.append(os.path.join(root, file))
+all_files.sort()
 
-    # Data variables
-    train_generator = DataGenerator(filepaths=train_files,
-                                    batch_size=BATCH_SIZE,
-                                    new_sfreq=DOWNSAMPLE_FREQ)
-    val_generator = DataGenerator(filepaths=val_files,
-                                    batch_size=BATCH_SIZE,
-                                    new_sfreq=DOWNSAMPLE_FREQ)
-    print(f"Split with downsample frequency: {DOWNSAMPLE_FREQ}Hz")
+if not all_files:
+    raise ValueError(f"No .h5 files found in {dir}. Check path and file extensions.")
 
-    # Build model
-    input_shape = train_generator[0][0][0].shape
-    cnn = build_spat_temp_model(train_generator[0][0][0].shape, embed_dim=16, dropout=0.5)
-    cnn.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+# Train test split
+train_filepaths, val_filepaths = train_test_split(
+    all_files,
+    test_size=0.18,
+    random_state=42)
+print(len(train_filepaths))
+train_generator = DataGenerator(
+        filepaths=train_filepaths,
+        batch_size=BATCH_SIZE,
+        task_type='classifier',
+        shuffle=True)
+val_generator = DataGenerator(
+        filepaths=val_filepaths,
+        batch_size=BATCH_SIZE,
+        task_type='classifier',
+        shuffle=True)
+print(f"Split!")
+print(len(train_generator))
 
-    print(f"\nStarting training using generator. Batches per training epoch: {len(train_generator)}")
-    print(f"Batches per validation epoch: {len(val_generator)}")
-    print(f"Model expected input shape: {cnn.input_shape}")
+# Build the Transformer model
+MegDataShape = (248, 35624)
+config = {}
+config['num_layers'] = 4
+config['embedding_size'] = 16
+config['num_heads'] = 4
+config['dropout_rate'] = 0.1
+config['num_channels'] = 1
+config['mlp_dim'] = 64
+config['patch_size'] = MegDataShape[0]
+config['num_patches'] = math.floor((config['patch_size'] * MegDataShape[1]) / (config['patch_size'] * config['patch_size']))
 
-    history = cnn.fit(
-        train_generator,
-        validation_data=val_generator,
-        epochs=EPOCHS,
-        verbose=1,
-    )
+# Transform data into patches
+for i in range(len(train_generator)):
+    X_batch, y_batch = train_generator[i]
+    train_input = np.array([extract_patches(sample, (config['patch_size'], config['patch_size']), config['num_patches']) for sample in X_batch])
+    train_labels = np.array(y_batch)
 
-    print("\nClassifier training complete!")
+for i in range(len(val_generator)):
+    X_batch, y_batch = val_generator[i]
+    val_input = np.array([extract_patches(sample, (config['patch_size'], config['patch_size']), config['num_patches']) for sample in X_batch])
+    val_labels = np.array(y_batch)
 
-    # --- Plot training history ---
-    plt.plot(history.history['accuracy'], label='Training Acc')
-    plt.plot(history.history['val_accuracy'], label='Val Acc')
-    plt.title(f'Classifier Training History with {freq}Hz (Cross-Subject)')
-    plt.xlabel('Epochs')
-    plt.ylabel('Loss')
-    plt.legend()
-    plt.show()
+# Build the transformer
+transformer = build_transformer(config)
+transformer.compile(
+    optimizer=keras.optimizers.Adam(learning_rate=0.001),
+    loss='sparse_categorical_crossentropy',
+    metrics=['accuracy'])
 
+# Callbacks
+ModelSaving = keras.callbacks.ModelCheckpoint(
+    filepath='./models/transformer.keras',
+    monitor='val_accuracy',
+    save_best_only=True,
+    verbose=1
+)
+callbacks = [ModelSaving]
+# Fit the model
+history = transformer.fit(
+    train_input, train_labels,
+    validation_data=(val_input, val_labels),
+    epochs=EPOCHS,
+    callbacks=callbacks,
+)
+# Plot the accuracy
+plt.figure(figsize=(10, 6))
+plt.plot(history.history['accuracy'], label='Training Accuracy')
+plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.title('Transformer Model Accuracy')
+plt.legend()
+plt.grid(True)
+plt.show()
 
 

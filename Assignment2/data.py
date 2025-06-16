@@ -22,27 +22,26 @@ from sklearn.utils import shuffle
 
 # Data generator class for cross-subject training:
 class DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, filepaths,
-                 batch_size, new_sfreq,
-                 shuffle=True, **kwargs
-                 ):
+    def __init__(self, filepaths, batch_size, task_type='classifier', chunk_size=None,
+                 shuffle=True, **kwargs):
         super().__init__(**kwargs)
         self.filepaths = filepaths
         self.batch_size = batch_size
-        self.new_sfreq = new_sfreq
+        self.task_type = task_type
+        self.chunk_size = chunk_size
         self.shuffle = shuffle
 
+        self.indices = np.array([])
+
+        if self.task_type == 'encoder' and self.chunk_size is None:
+            raise ValueError("For 'encoder' task_type, 'chunk_size' must be provided.")
+
         self.label_patterns = {
-            "rest": 0,
-            "task_story_math": 1,
-            "task_motor": 2,
-            "task_working_memory": 3
+            "rest": 0, "task_story_math": 1, "task_motor": 2, "task_working_memory": 3
         }
 
-        # This list will store references to the files (file index, label)
         self._all_sample_references = []
 
-        # Enumerate over all filepaths and create references
         for filepath_idx, filepath in enumerate(self.filepaths):
             file_basename = os.path.basename(filepath)
             file_label = -1
@@ -57,16 +56,34 @@ class DataGenerator(tf.keras.utils.Sequence):
                 print(f"Warning: Could not determine label for file {filepath}. Skipping.")
                 continue
 
-            # We don't need to inspect total_measurements here, as we'll downsample the whole thing
-            self._all_sample_references.append({
-                'filepath_idx': filepath_idx,
-                'label': file_label
-            })
+            if self.task_type == 'encoder':
+                try:
+                    with h5py.File(filepath, 'r') as f:
+                        data_name = list(f.keys())[0]
+                        _, original_n_measurements_for_file = f[data_name].shape
+                except Exception as e:
+                    print(f"Error reading metadata from {filepath}: {e}. Skipping file.")
+                    continue
 
-            self.on_epoch_end()  # Initialize indices and shuffle
+                n_chunks_in_file = original_n_measurements_for_file // self.chunk_size
 
+                for i in range(n_chunks_in_file):
+                    self._all_sample_references.append({
+                        'filepath_idx': filepath_idx,
+                        'start_time_idx': i * self.chunk_size,
+                        'end_time_idx': (i + 1) * self.chunk_size,
+                        'label': file_label  # <--- CORRECT: Store the actual label here
+                    })
+            elif self.task_type == 'classifier':
+                self._all_sample_references.append({
+                    'filepath_idx': filepath_idx,
+                    'label': file_label
+                })
+            else:
+                raise ValueError(f"Invalid task_type: {self.task_type}. Must be 'classifier' or 'encoder'.")
+
+        self.on_epoch_end()
     def on_epoch_end(self):
-        # Shuffle indices at the end of each epoch
         self.indices = np.arange(len(self._all_sample_references))
         if self.shuffle:
             np.random.shuffle(self.indices)
@@ -80,77 +97,63 @@ class DataGenerator(tf.keras.utils.Sequence):
         X_batch_samples = []
         y_batch_labels = []
 
+        loaded_full_subject_data_cache = {}
+
         for ref_idx in indices:
             ref = self._all_sample_references[ref_idx]
             filepath = self.filepaths[ref['filepath_idx']]
 
-            # --- Load the raw full subject data ---
-            raw_subject_data = load(filepath)  # Shape: (n_channels, original_n_measurements)
+            try:
 
-            # Ensure data is 2D (channels, time_steps) if load() returns (1, C, t)
-            if raw_subject_data.ndim == 3 and raw_subject_data.shape[0] == 1:
-                raw_subject_data = raw_subject_data.squeeze(axis=0)  # (n_channels, original_n_measurements)
+                if filepath not in loaded_full_subject_data_cache:
+                    raw_subject_data = load(filepath)
+                    if raw_subject_data.ndim == 3 and raw_subject_data.shape[0] == 1:
+                        raw_subject_data = raw_subject_data.squeeze(axis=0)
 
-            # --- Downsample the subject data ---
-            downsampled_subject_data = downsample(
-                raw_subject_data, self.new_sfreq
-            )  # Shape: (n_channels, new_n_measurements)
+                    normalized_data = z_norm(raw_subject_data)
 
-            # --- Z-normalize the downsampled data ---
-            # This is applied to the whole downsampled subject's recording (per channel)
-            normalized_subject_data = z_norm(downsampled_subject_data)  # Shape: (n_channels, new_n_measurements)
+                    loaded_full_subject_data_cache[filepath] = normalized_data
 
-            X_batch_samples.append(normalized_subject_data)
-            y_batch_labels.append(ref['label'])
+                processed_full_subject_data = loaded_full_subject_data_cache[filepath]
 
-        X_batch = np.stack(X_batch_samples)  # Shape: (batch_size, n_channels, new_n_measurements, 1)
-        y_batch = np.array(y_batch_labels)  # Shape: (batch_size,)
+                if self.task_type == 'classifier':
+                    final_X_sample = np.expand_dims(processed_full_subject_data, axis=-1)
 
-        return X_batch, y_batch
+                    X_batch_samples.append(final_X_sample)
+                    y_batch_labels.append(ref['label'])
 
+                elif self.task_type == 'encoder':
+                    if 'start_time_idx' not in ref:
+                        raise ValueError(f"Encoder reference missing chunk indices: {ref}")
 
-# Build the intra train dataset
-rest_set_names = [
-    "./Intra/train/rest_105923_1.h5",
-    "./Intra/train/rest_105923_2.h5",
-    "./Intra/train/rest_105923_3.h5",
-    "./Intra/train/rest_105923_4.h5",
-    "./Intra/train/rest_105923_5.h5",
-    "./Intra/train/rest_105923_6.h5",
-    "./Intra/train/rest_105923_7.h5",
-    "./Intra/train/rest_105923_8.h5",
-]
-motor_set_names = [
-    "./Intra/train/task_motor_105923_1.h5",
-    "./Intra/train/task_motor_105923_2.h5",
-    "./Intra/train/task_motor_105923_3.h5",
-    "./Intra/train/task_motor_105923_4.h5",
-    "./Intra/train/task_motor_105923_5.h5",
-    "./Intra/train/task_motor_105923_6.h5",
-    "./Intra/train/task_motor_105923_7.h5",
-    "./Intra/train/task_motor_105923_8.h5",
-]
-math_set_names = [
-    "./Intra/train/task_story_math_105923_1.h5",
-    "./Intra/train/task_story_math_105923_2.h5",
-    "./Intra/train/task_story_math_105923_3.h5",
-    "./Intra/train/task_story_math_105923_4.h5",
-    "./Intra/train/task_story_math_105923_5.h5",
-    "./Intra/train/task_story_math_105923_6.h5",
-    "./Intra/train/task_story_math_105923_7.h5",
-    "./Intra/train/task_story_math_105923_8.h5",
-]
-memory_set_names = [
-    "./Intra/train/task_working_memory_105923_1.h5",
-    "./Intra/train/task_working_memory_105923_2.h5",
-    "./Intra/train/task_working_memory_105923_3.h5",
-    "./Intra/train/task_working_memory_105923_4.h5",
-    "./Intra/train/task_working_memory_105923_5.h5",
-    "./Intra/train/task_working_memory_105923_6.h5",
-    "./Intra/train/task_working_memory_105923_7.h5",
-    "./Intra/train/task_working_memory_105923_8.h5",
-]
-intraTrain = [rest_set_names, math_set_names, motor_set_names, memory_set_names]
+                    chunk = processed_full_subject_data[:, ref['start_time_idx']: ref['end_time_idx']]
+                    final_X_sample = chunk.reshape(chunk.shape[0], chunk.shape[1], 1) # Correct: yields the actual label for the chunk
+
+                else:
+                    raise ValueError(f"Unknown task_type: {self.task_type}")
+
+            except Exception as e:
+                # --- CRITICAL DEBUG OUTPUT ---
+                print(
+                    f"ERROR in DataGenerator __getitem__: Failed to process file '{filepath}' (Index {ref_idx}, Batch {idx}). "
+                    f"Specific error: {type(e).__name__}: {e}. Skipping this sample in batch.")
+                continue
+
+        if not X_batch_samples:
+            print(
+                f"WARNING: Batch {idx} is empty. All {len(indices)} requested samples for this batch failed to process or were skipped. "
+                f"This will cause ValueError: need at least one array to stack.")
+
+        X_batch = np.stack(X_batch_samples)
+        y_batch = np.array(y_batch_labels)
+
+        if self.task_type == 'encoder':
+            return X_batch, y_batch  # Autoencoder's pretext task is X as its own Y
+        elif self.task_type == 'classifier':
+            return X_batch, y_batch  # Classifier's task is X and actual Y
+        else:
+            raise ValueError(f"Unknown task_type: {self.task_type}") # Should not happen
+
 def load(filename):
     file = h5py.File(filename, 'r')
 
@@ -246,32 +249,32 @@ def downsample(sample, sfreq_new):
 
 
 # step_size: the number of frames that will be averaged to make the data smaller
-def build_dataset(sfreq_new, step_size=1):
-    X = []
-    y = []
-
-    for rest_set_name in rest_set_names:
-        X.append(z_norm(downsample(load(rest_set_name), sfreq_new=sfreq_new)))
-        y.append(0)
-
-    for math_set_name in math_set_names:
-        X.append(z_norm(downsample(load(math_set_name), sfreq_new=sfreq_new)))
-        y.append(1)
-
-    for motor_set_name in motor_set_names:
-        X.append(z_norm(downsample(load(motor_set_name), sfreq_new=sfreq_new)))
-        y.append(2)
-
-    for memory_set_name in memory_set_names:
-        X.append(z_norm(downsample(load(memory_set_name), sfreq_new=sfreq_new)))
-        y.append(3)
-
-    X = np.stack(X)  # shape: (num_samples, 248, 35624)
-    y = np.array(y)
-
-    X, y = shuffle(X, y, random_state=42)
-
-    return X, y
+# def build_dataset(sfreq_new, step_size=1):
+#     X = []
+#     y = []
+#
+#     for rest_set_name in rest_set_names:
+#         X.append(z_norm(downsample(load(rest_set_name), sfreq_new=sfreq_new)))
+#         y.append(0)
+#
+#     for math_set_name in math_set_names:
+#         X.append(z_norm(downsample(load(math_set_name), sfreq_new=sfreq_new)))
+#         y.append(1)
+#
+#     for motor_set_name in motor_set_names:
+#         X.append(z_norm(downsample(load(motor_set_name), sfreq_new=sfreq_new)))
+#         y.append(2)
+#
+#     for memory_set_name in memory_set_names:
+#         X.append(z_norm(downsample(load(memory_set_name), sfreq_new=sfreq_new)))
+#         y.append(3)
+#
+#     X = np.stack(X)  # shape: (num_samples, 248, 35624)
+#     y = np.array(y)
+#
+#     X, y = shuffle(X, y, random_state=42)
+#
+#     return X, y
 
 def create_cross_validation_sets(X, y, chunks=4):
     chunk_size = X.shape[0] // chunks
@@ -296,5 +299,113 @@ def create_cross_validation_sets(X, y, chunks=4):
             raise ValueError("Unable to create a validation set with all classes present after 100 attempts.")
 
     return cv_sets
+
+def glue_chunks(data:np.array, nr_chunks:int) -> np.array:
+    if not nr_chunks:
+        raise ValueError("No chunks provided to glue.")
+
+    total_chunks, sensors, measurements, channels = data.shape
+    num_groups = total_chunks // nr_chunks  # 1668 / 278 = 6
+
+
+    subjects = []
+    for i in range(num_groups):
+        chunk_group = data[i * nr_chunks: (i + 1) * nr_chunks]# (278, 248, 64, 1)
+        chunk_group = chunk_group.squeeze(-1)  # → (278, 248, 64)
+        chunk_group = np.transpose(chunk_group, (1, 0, 2))  # → (248, 278, 64)
+        split_chunks = [chunk_group[:, i, :] for i in range(nr_chunks)]  # list of 278 arrays of shape (248, 64)
+        concatenated = np.concatenate(split_chunks, axis=1)      # → (248, 17792)
+        subjects.append(concatenated)
+
+    # Stack all groups into shape (subjects, 248, 17792, 1)
+    result = np.stack(subjects, axis=0)
+    return result
+
+def extract_patches(data, patch_size, num_patches):
+    """
+    Args:
+        data: (248, 35624, 1)
+        patch_size: (248, 248)
+
+    Returns:
+        patches: (144, 248*248*1)
+    """
+    data = np.squeeze(data, axis=-1)  # now (248, 35624)
+    h, w = data.shape
+    ph, pw = patch_size
+    assert h == ph
+
+    usable_width = num_patches * pw
+    data = data[:, :usable_width]
+
+    patches = np.reshape(data, (num_patches, ph, pw))  # (144, 248, 248)
+    patches = patches.reshape((num_patches, -1))       # (144, 61504)
+    return patches
+
+class CustomAccuracyLossCheckpoint(tf.keras.callbacks.Callback):
+    """
+    A custom ModelCheckpoint callback that saves the model based on validation accuracy
+    first, and then uses validation loss as a tie-breaker.
+
+    Saves if:
+    1. val_accuracy is strictly greater than the best val_accuracy seen so far.
+    2. OR, if val_accuracy is equal (or very close) to the best val_accuracy,
+       AND val_loss is strictly lower than the best val_loss recorded at that best accuracy.
+    """
+
+    def __init__(self, filepath, verbose=0):
+        super().__init__()
+        self.filepath = filepath
+        self.verbose = verbose
+
+        # Initialize best metrics.
+        # We want to maximize accuracy, so start with negative infinity.
+        self.best_val_accuracy = -np.inf
+        # We want to minimize loss at best accuracy, so start with positive infinity.
+        self.best_val_loss_at_best_accuracy = np.inf
+
+        # self.model will be set by Keras when the callback is added to model.fit()
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        current_val_accuracy = logs.get('val_accuracy')
+        current_val_loss = logs.get('val_loss')
+
+        # Check if metrics are available in logs
+        if current_val_accuracy is None or current_val_loss is None:
+            if self.verbose > 0:
+                print(
+                    f"Skipping CustomAccuracyLossCheckpoint for epoch {epoch + 1}: 'val_accuracy' or 'val_loss' not found in logs.")
+            return
+
+        model_saved = False  # Flag to indicate if model was saved in this epoch
+
+        # --- Condition 1: Strictly better validation accuracy ---
+        if current_val_accuracy > self.best_val_accuracy:
+            self.best_val_accuracy = current_val_accuracy
+            self.best_val_loss_at_best_accuracy = current_val_loss  # Update best loss for this new best accuracy
+
+            self.model.save(self.filepath)
+            model_saved = True
+            if self.verbose > 0:
+                print(f"\nEpoch {epoch + 1}: val_accuracy improved to {current_val_accuracy:.4f}, "
+                      f"val_loss at this accuracy is {current_val_loss:.4f}. Saving model to {self.filepath}")
+
+        # --- Condition 2: Equal validation accuracy (or very close due to float precision)
+        #                 AND strictly better validation loss ---
+        elif np.isclose(current_val_accuracy, self.best_val_accuracy, atol=1e-6):  # Use tolerance for float comparison
+            if current_val_loss < self.best_val_loss_at_best_accuracy:
+                self.best_val_loss_at_best_accuracy = current_val_loss  # Update best loss (accuracy remains same)
+
+                self.model.save(self.filepath)
+                model_saved = True
+                if self.verbose > 0:
+                    print(f"\nEpoch {epoch + 1}: val_accuracy maintained at {current_val_accuracy:.4f}, "
+                          f"val_loss improved to {current_val_loss:.4f}. Saving model to {self.filepath}")
+
+        # Optional: Print message if no improvement
+        if not model_saved and self.verbose > 1:  # verbose level 2 to show non-saving messages
+            print(
+                f"Epoch {epoch + 1}: val_accuracy ({current_val_accuracy:.4f}) and val_loss ({current_val_loss:.4f}) did not improve over best.")
 
 

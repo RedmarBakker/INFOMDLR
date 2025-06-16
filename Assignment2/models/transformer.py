@@ -1,41 +1,102 @@
+import tensorflow as tf
 import keras
 import math
 
-def build_transformer(data_length=math.floor(2043*17.5), embedding_dim=16, n_layers=4, n_attn_heads=4, attn_dropout=0.1, ffn_dropout=0.1, final_dense_units=64, final_dropout=0.1):
-    # Input shape (e.g., for 28x28 grayscale images like MNIST)
-    input_shape = (248, data_length)
+class ClassToken(keras.layers.Layer):
+    def __init__(self):
+        super().__init__()
 
-    # Encoder
-    input_data = keras.layers.Input(shape=input_shape)
+    def build(self, input_shape):
+        w_init = tf.random_normal_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=(1, 1, input_shape[-1]), dtype=tf.float32),
+            trainable=True,
+        )
 
-    x = keras.layers.Dense(embedding_dim, activation='relu')(input_data)
+    def call(self, inputs):
+        batch_size = tf.shape(inputs)[0]
+        hidden_dim = self.w.shape[-1]
+        cls = tf.broadcast_to(self.w, shape=(batch_size, 1, hidden_dim))
+        cls = tf.cast(cls, dtype=inputs.dtype)
+        return cls
 
-    # Transformer Encoder block
-    for _ in range(n_layers):
-        x = keras.layers.LayerNormalization(epsilon=1e-6)(x)
-        attn_output = keras.layers.MultiHeadAttention(num_heads=n_attn_heads, key_dim=embedding_dim)(x, x)
-        attn_output = keras.layers.Dropout(attn_dropout)(attn_output)
-        x = keras.layers.Add()([x, attn_output])
-        ffn_output = keras.layers.Dense(embedding_dim * 4, activation='relu')(x)
-        ffn_output = keras.layers.Dropout(ffn_dropout)(ffn_output)
-        ffn_output = keras.layers.Dense(embedding_dim)(ffn_output)
-        x = keras.layers.Add()([x, ffn_output])
 
-    # Global average pooling and classification head
-    x = keras.layers.GlobalAveragePooling1D()(x)
-    x = keras.layers.Dense(final_dense_units, activation='relu')(x)
-    x = keras.layers.Dropout(final_dropout)(x)
+def mlp(x, config:dict):
+    x = keras.layers.Dense(config['mlp_dim'], activation='gelu')(x)
+    x = keras.layers.Dropout(config['dropout_rate'])(x)
+    x = keras.layers.Dense(config['embedding_size'])(x)
+    x = keras.layers.Dropout(config['dropout_rate'])(x)
+    return x
 
-    outputs = keras.layers.Dense(4, activation='softmax')(x)
+def transformer_encoder(x, config:dict):
+    res_1 = x
+    x = keras.layers.LayerNormalization(epsilon=1e-6)(x)
+    x = keras.layers.MultiHeadAttention(
+        num_heads=config['num_heads'],
+        key_dim=config['embedding_size'],
+        dropout=config['dropout_rate']
+    )(x, x)
+    x = keras.layers.Add()([x, res_1])
 
-    model = keras.models.Model(inputs=input_data, outputs=outputs)
+    res_2 = x
+    x = keras.layers.LayerNormalization(epsilon=1e-6)(x)
+    x = mlp(x, config)
+    x = keras.layers.Add()([x, res_2])
 
-    # Dynamically calculate learning rate based on model complexity
-    base_lr = 0.00004
-    complexity_factor = (1.25 * embedding_dim * n_layers * final_dense_units) / 1024.0
-    learning_rate = base_lr / complexity_factor
+    return x
 
-    optimizer = keras.optimizers.Adam(learning_rate=learning_rate)
-    model.compile(optimizer=optimizer, loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+def build_transformer(cf:dict):
+    """
+    Builds a Transformer model based on the provided configuration.
+
+    Args:
+        cf (dict): Configuration dictionary containing model parameters.
+
+        Returns:
+            keras.Model: A Keras model instance representing the Transformer.
+        """
+
+    """Inputs"""
+    inputs = (cf['num_patches'], cf['patch_size'] * cf['patch_size'] * cf['num_channels'])
+    input_layer = keras.layers.Input(shape=inputs) #(None, 144, 61504)
+
+    """Embeddings (Patch + Positional)"""
+    patch_embeddings = keras.layers.Dense(cf['embedding_size'])(input_layer)  # (None, 144, 16)
+    positions = tf.range(start=0, limit=cf['num_patches'], delta=1, dtype=tf.int32) # (144,)
+    pos_embeddings = keras.layers.Embedding(input_dim=cf['num_patches'], output_dim=cf['embedding_size'])(positions)  # (144, 16)
+    embeddings = patch_embeddings + pos_embeddings  # (None, 144, 16)
+
+    """Class Token"""
+    token = ClassToken()(embeddings)
+    x = keras.layers.Concatenate(axis=1)([token, embeddings])  # (None, 145, 16)
+
+    """Transformer Encoder"""
+    for _ in range(cf['num_layers']):
+        x = transformer_encoder(x, cf)
+
+    """Classification Head"""
+    x = keras.layers.LayerNormalization(epsilon=1e-6)(x) # (None, 145, 16)
+    x = x[:, 0, :]  # (None, 16) Selects the class token (first token) for classification
+    x = keras.layers.Dropout(cf['dropout_rate'])(x)
+    output_layer = keras.layers.Dense(4, activation='softmax')(x)  # 4 classes for classification
+
+    model = keras.models.Model(inputs=input_layer, outputs=output_layer, name='Transformer')
 
     return model
+
+if __name__ == '__main__':
+
+    MegDataShape = (248, 35624)
+    config = {}
+    config['num_layers'] = 4
+    config['embedding_size'] = 16
+    config['num_heads'] = 4
+    config['dropout_rate'] = 0.1
+    config['num_channels'] = 1
+    config['mlp_dim'] = 64
+    config['patch_size'] = MegDataShape[0]
+    config['num_patches'] = math.ceil((config['patch_size'] * MegDataShape[1]) / (config['patch_size'] * config['patch_size']))
+
+
+    model = build_transformer(config)
+    model.summary()
