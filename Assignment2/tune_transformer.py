@@ -12,6 +12,8 @@ import json
 import os
 from tabulate import tabulate
 import numpy as np
+from multiprocessing import Pool, Manager
+from functools import partial
 
 def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate):
     # Process data
@@ -55,20 +57,12 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
     else:
         all_results = []
 
-    combinations = list(product(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate))
+    manager = Manager()
+    combination_stack = manager.list(product(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate))
 
-    for i, (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) in enumerate(combinations):
+    # for i, (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) in enumerate(combinations):
+    def train_model(config):
         # Build the Transformer model
-
-        config = {}
-        config['num_layers'] = num_layers
-        config['embedding_size'] = emb_dim
-        config['num_heads'] = n_heads
-        config['dropout_rate'] = dropout_rate
-        config['num_channels'] = 1
-        config['mlp_dim'] = mlp_dims
-        config['patch_size'] = X[0].shape[1]
-        config['num_patches'] = X[0].shape[0]
 
         train_loss_list = []
         train_acc_list = []
@@ -87,12 +81,12 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
             )
 
             # Callback filepath
-            filepath = f"./models/transformer/{dataset_source}/emb{emb_dim}_layers{num_layers}_heads{n_heads}_mlp{mlp_dims}_dropout{dropout_rate}_cv{i}.keras"
+            filepath = f"./models/transformer/{dataset_source}/emb{config['embedding_size']}_layers{num_layers}_heads{n_heads}_mlp{mlp_dims}_dropout{dropout_rate}_cv{i}.keras"
 
             # Callbacks
             early_stopping = keras.callbacks.EarlyStopping(
                 monitor='val_loss',
-                patience=80,
+                patience=100,
                 restore_best_weights=True
             )
             model_checkpoint = keras.callbacks.ModelCheckpoint(
@@ -137,8 +131,33 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
         all_results.append(config_result)
 
-        with open(results_path, "w") as f:
+        with open(results_path, "r+") as f:
             json.dump(all_results, f, indent=2)
+
+    def process_worker(combination_stack, cv_sets, X, dataset_source, results_path):
+        while combination_stack:
+            try:
+                (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) = combination_stack.pop()
+
+                train_model({
+                    'num_layers': num_layers,
+                    'embedding_size': emb_dim,
+                    'num_heads': n_heads,
+                    'dropout_rate': dropout_rate,
+                    'num_channels': 1,
+                    'mlp_dim': mlp_dims,
+                    'patch_size': X[0].shape[1],
+                    'num_patches': X[0].shape[0],
+                })
+            except IndexError:
+                break
+
+    with Pool(processes=os.cpu_count()) as pool:
+        pool.starmap(
+            process_worker,
+            [(combination_stack, cv_sets, X, dataset_source, results_path) for _ in range(os.cpu_count())]
+        )
+
 
 def tune_transformer_step_size(step_sizes):
     results = {}
