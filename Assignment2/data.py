@@ -10,6 +10,7 @@ import h5py
 import numpy as np
 import mne.filter
 import tensorflow as tf
+import keras
 import matplotlib.pyplot as plt
 from scipy import signal
 import mne
@@ -21,19 +22,17 @@ from sklearn.utils import shuffle
 # Since the cross train dataset is too large to fit in memory, it has to be loaded in batches
 
 # Data generator class for cross-subject training:
-class DataGenerator(tf.keras.utils.Sequence):
-    def __init__(self, filepaths, batch_size, task_type='classifier', chunk_size=None,
-                 shuffle=True, **kwargs):
+class AutoEncoderDataGenerator(keras.utils.Sequence):
+    def __init__(self, filepaths, batch_size, chunk_size=None, shuffle=True, **kwargs):
         super().__init__(**kwargs)
         self.filepaths = filepaths
         self.batch_size = batch_size
-        self.task_type = task_type
         self.chunk_size = chunk_size
         self.shuffle = shuffle
 
         self.indices = np.array([])
 
-        if self.task_type == 'encoder' and self.chunk_size is None:
+        if self.chunk_size is None:
             raise ValueError("For 'encoder' task_type, 'chunk_size' must be provided.")
 
         self.label_patterns = {
@@ -56,35 +55,28 @@ class DataGenerator(tf.keras.utils.Sequence):
                 print(f"Warning: Could not determine label for file {filepath}. Skipping.")
                 continue
 
-            if self.task_type == 'encoder':
-                try:
-                    with h5py.File(filepath, 'r') as f:
-                        data_name = list(f.keys())[0]
-                        _, original_n_measurements_for_file = f[data_name].shape
-                except Exception as e:
-                    print(f"Error reading metadata from {filepath}: {e}. Skipping file.")
-                    continue
+            try:
+                with h5py.File(filepath, 'r') as f:
+                    data_name = list(f.keys())[0]
+                    _, original_n_measurements_for_file = f[data_name].shape
+            except Exception as e:
+                print(f"Error reading metadata from {filepath}: {e}. Skipping file.")
+                continue
 
-                n_chunks_in_file = original_n_measurements_for_file // self.chunk_size
+            n_chunks_in_file = original_n_measurements_for_file // self.chunk_size
 
-                for i in range(n_chunks_in_file):
-                    self._all_sample_references.append({
-                        'filepath_idx': filepath_idx,
-                        'start_time_idx': i * self.chunk_size,
-                        'end_time_idx': (i + 1) * self.chunk_size,
-                        'label': file_label  # <--- CORRECT: Store the actual label here
-                    })
-            elif self.task_type == 'classifier':
+            for i in range(n_chunks_in_file):
                 self._all_sample_references.append({
                     'filepath_idx': filepath_idx,
-                    'label': file_label
+                    'start_time_idx': i * self.chunk_size,
+                    'end_time_idx': (i + 1) * self.chunk_size,
+                    'label': file_label  # <--- CORRECT: Store the actual label here
                 })
-            else:
-                raise ValueError(f"Invalid task_type: {self.task_type}. Must be 'classifier' or 'encoder'.")
 
         self.on_epoch_end()
     def on_epoch_end(self):
         self.indices = np.arange(len(self._all_sample_references))
+
         if self.shuffle:
             np.random.shuffle(self.indices)
 
@@ -116,21 +108,11 @@ class DataGenerator(tf.keras.utils.Sequence):
 
                 processed_full_subject_data = loaded_full_subject_data_cache[filepath]
 
-                if self.task_type == 'classifier':
-                    final_X_sample = np.expand_dims(processed_full_subject_data, axis=-1)
+                if 'start_time_idx' not in ref:
+                    raise ValueError(f"Encoder reference missing chunk indices: {ref}")
 
-                    X_batch_samples.append(final_X_sample)
-                    y_batch_labels.append(ref['label'])
-
-                elif self.task_type == 'encoder':
-                    if 'start_time_idx' not in ref:
-                        raise ValueError(f"Encoder reference missing chunk indices: {ref}")
-
-                    chunk = processed_full_subject_data[:, ref['start_time_idx']: ref['end_time_idx']]
-                    final_X_sample = chunk.reshape(chunk.shape[0], chunk.shape[1], 1) # Correct: yields the actual label for the chunk
-
-                else:
-                    raise ValueError(f"Unknown task_type: {self.task_type}")
+                chunk = processed_full_subject_data[:, ref['start_time_idx']: ref['end_time_idx']]
+                final_X_sample = chunk.reshape(chunk.shape[0], chunk.shape[1], 1)  # Correct: yields the actual label for the chunk
 
             except Exception as e:
                 # --- CRITICAL DEBUG OUTPUT ---
@@ -147,12 +129,64 @@ class DataGenerator(tf.keras.utils.Sequence):
         X_batch = np.stack(X_batch_samples)
         y_batch = np.array(y_batch_labels)
 
-        if self.task_type == 'encoder':
-            return X_batch, y_batch  # Autoencoder's pretext task is X as its own Y
-        elif self.task_type == 'classifier':
-            return X_batch, y_batch  # Classifier's task is X and actual Y
-        else:
-            raise ValueError(f"Unknown task_type: {self.task_type}") # Should not happen
+        return X_batch, y_batch  # Autoencoder's pretext task is X as its own Y
+
+class TransformerDataGenerator(keras.utils.Sequence):
+    def __init__(self, filepaths, shuffle=True, **kwargs):
+        super().__init__(**kwargs)
+        self.filepaths = filepaths
+        self.shuffle = shuffle
+        self.indices = np.array([])
+
+        self.label_patterns = {
+            "rest": 0, "task_story_math": 1, "task_motor": 2, "task_working_memory": 3
+        }
+
+        self._all_sample_references = []
+
+        for filepath_idx, filepath in enumerate(self.filepaths):
+            file_basename = os.path.basename(filepath)
+            file_label = -1
+            found_label = False
+            for pattern, label_val in self.label_patterns.items():
+                if file_basename.startswith(pattern):
+                    file_label = label_val
+                    found_label = True
+                    break
+
+            if not found_label:
+                print(f"Warning: Could not determine label for file {filepath}. Skipping.")
+                continue
+
+            raw_subject_data = load(filepath)
+            if raw_subject_data.ndim == 3 and raw_subject_data.shape[0] == 1:
+                raw_subject_data = raw_subject_data.squeeze(axis=0)
+
+            normalized_data = z_norm(downsample(raw_subject_data, 1022))
+
+            self._all_sample_references.append(
+                (extract_patches(normalized_data), file_label)
+            )
+
+        self.on_epoch_end()
+
+    def on_epoch_end(self):
+        self.indices = np.arange(len(self._all_sample_references))
+
+        if self.shuffle:
+            np.random.shuffle(self.indices)
+
+    def __len__(self):
+        return len(self._all_sample_references)
+
+    def __getitem__(self, idx):
+        patches, label = self._all_sample_references[self.indices[idx]]
+        X = np.expand_dims(patches, axis=0)  # shape: (1, num_features)
+        y = np.array([label])  # shape: (1,)
+        return X, y
+
+    def get_shape(self):
+        return self._all_sample_references[self.indices[0]][0].shape
 
 def load(filename):
     file = h5py.File(filename, 'r')
@@ -246,35 +280,34 @@ def downsample(sample, sfreq_new):
                                            verbose=False)
     return downsampled_data
 
-
-
 # step_size: the number of frames that will be averaged to make the data smaller
-# def build_dataset(sfreq_new, step_size=1):
-#     X = []
-#     y = []
-#
-#     for rest_set_name in rest_set_names:
-#         X.append(z_norm(downsample(load(rest_set_name), sfreq_new=sfreq_new)))
-#         y.append(0)
-#
-#     for math_set_name in math_set_names:
-#         X.append(z_norm(downsample(load(math_set_name), sfreq_new=sfreq_new)))
-#         y.append(1)
-#
-#     for motor_set_name in motor_set_names:
-#         X.append(z_norm(downsample(load(motor_set_name), sfreq_new=sfreq_new)))
-#         y.append(2)
-#
-#     for memory_set_name in memory_set_names:
-#         X.append(z_norm(downsample(load(memory_set_name), sfreq_new=sfreq_new)))
-#         y.append(3)
-#
-#     X = np.stack(X)  # shape: (num_samples, 248, 35624)
-#     y = np.array(y)
-#
-#     X, y = shuffle(X, y, random_state=42)
-#
-#     return X, y
+def build_dataset(filepaths, sfreq_new=1022):
+    X = []
+    y = []
+
+    label_patterns = {
+        "rest": 0, "task_story_math": 1, "task_motor": 2, "task_working_memory": 3
+    }
+
+    for filepath_idx, filepath in enumerate(filepaths):
+        file_basename = os.path.basename(filepath)
+        file_label = -1
+        found_label = False
+        for pattern, label_val in label_patterns.items():
+            if file_basename.startswith(pattern):
+                file_label = label_val
+                found_label = True
+                break
+
+        X.append(extract_patches(z_norm(downsample(load(filepath), sfreq_new=sfreq_new))))
+        y.append(file_label)
+
+    X = np.stack(X)  # shape: (num_samples, 248, 35624)
+    y = np.array(y)
+
+    X, y = shuffle(X, y, random_state=42)
+
+    return X, y
 
 def create_cross_validation_sets(X, y, chunks=4):
     chunk_size = X.shape[0] // chunks
@@ -321,7 +354,7 @@ def glue_chunks(data:np.array, nr_chunks:int) -> np.array:
     result = np.stack(subjects, axis=0)
     return result
 
-def extract_patches(data, patch_size, num_patches):
+def extract_patches(data):
     """
     Args:
         data: (248, 35624, 1)
@@ -330,9 +363,13 @@ def extract_patches(data, patch_size, num_patches):
     Returns:
         patches: (144, 248*248*1)
     """
-    data = np.squeeze(data, axis=-1)  # now (248, 35624)
+
+    # data = np.squeeze(data, axis=-1)  # now (248, 35624)
+    patch_size = data.shape[0]
+    num_patches = math.floor((data.shape[0] * data.shape[1]) / (patch_size * patch_size))
+
     h, w = data.shape
-    ph, pw = patch_size
+    ph, pw = patch_size, patch_size
     assert h == ph
 
     usable_width = num_patches * pw

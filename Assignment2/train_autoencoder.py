@@ -103,12 +103,12 @@ for setup in training_setup:
 
     # ---- TRAINING ----
     history = autoencoder.fit(
-            train_generator,
-            epochs=EPOCHS,
-            validation_data=val_generator,
-            callbacks=callbacks,
-            verbose=1
-        )
+        train_generator,
+        epochs=EPOCHS,
+        validation_data=val_generator,
+        callbacks=callbacks,
+        verbose=1
+    )
     print("\nAutoencoder training complete!")
 
     # --- Plot training history ---

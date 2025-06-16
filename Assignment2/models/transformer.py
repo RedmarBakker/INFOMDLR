@@ -3,8 +3,8 @@ import keras
 import math
 
 class ClassToken(keras.layers.Layer):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def build(self, input_shape):
         w_init = tf.random_normal_initializer()
@@ -57,7 +57,7 @@ def build_transformer(cf:dict):
         """
 
     """Inputs"""
-    inputs = (cf['num_patches'], cf['patch_size'] * cf['patch_size'] * cf['num_channels'])
+    inputs = (cf['num_patches'], cf['patch_size'] * cf['num_channels'])
     input_layer = keras.layers.Input(shape=inputs) #(None, 144, 61504)
 
     """Embeddings (Patch + Positional)"""
@@ -80,9 +80,7 @@ def build_transformer(cf:dict):
     x = keras.layers.Dropout(cf['dropout_rate'])(x)
     output_layer = keras.layers.Dense(4, activation='softmax')(x)  # 4 classes for classification
 
-    model = keras.models.Model(inputs=input_layer, outputs=output_layer, name='Transformer')
-
-    return model
+    return keras.models.Model(inputs=input_layer, outputs=output_layer, name='Transformer')
 
 if __name__ == '__main__':
 
@@ -96,7 +94,6 @@ if __name__ == '__main__':
     config['mlp_dim'] = 64
     config['patch_size'] = MegDataShape[0]
     config['num_patches'] = math.ceil((config['patch_size'] * MegDataShape[1]) / (config['patch_size'] * config['patch_size']))
-
 
     model = build_transformer(config)
     model.summary()

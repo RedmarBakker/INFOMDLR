@@ -1,0 +1,92 @@
+[
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.4851430654525757,
+    "val_accuracy": 0.1666666716337204,
+    "overfit_factor": 1.643467040415667
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.7298986613750458,
+    "val_accuracy": 0.25,
+    "overfit_factor": 2.0385010498782603
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 1,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.7936262786388397,
+    "val_accuracy": 0.28125,
+    "overfit_factor": 3.0726712481594127
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 1,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.6637261733412743,
+    "val_accuracy": 0.25,
+    "overfit_factor": 3.1341958483238814
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.5,
+    "val_loss": 1.819867157936096,
+    "val_accuracy": 0.13333333730697633,
+    "overfit_factor": 2.367589643143933
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.5,
+    "val_loss": 2.1562554597854615,
+    "val_accuracy": 0.33333334028720857,
+    "overfit_factor": 4.220692504845967
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.2,
+    "val_loss": 2.1969024181365966,
+    "val_accuracy": 0.43333334624767306,
+    "overfit_factor": 65.38858978584763
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 2.548219919204712,
+    "val_accuracy": 0.3000000059604645,
+    "overfit_factor": 17.751017208111698
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.2937955498695373,
+    "val_accuracy": 0.4666666626930237,
+    "overfit_factor": 1.6967489364399773
+  }
+]
