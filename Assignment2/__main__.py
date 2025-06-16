@@ -158,6 +158,7 @@ history = transformer.fit(
     validation_data=(val_input, val_labels),
     epochs=EPOCHS,
     callbacks=callbacks,
+    batch_size=BATCH_SIZE,
 )
 # Plot the accuracy
 plt.figure(figsize=(10, 6))
