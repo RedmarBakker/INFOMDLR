@@ -299,7 +299,7 @@ def build_dataset(filepaths, sfreq_new=1022):
                 found_label = True
                 break
 
-        X.append(extract_patches(z_norm(downsample(load(filepath), sfreq_new=sfreq_new))))
+        X.append(extract_patches(z_norm(load(filepath))))
         y.append(file_label)
 
     X = np.stack(X)  # shape: (num_samples, 248, 35624)

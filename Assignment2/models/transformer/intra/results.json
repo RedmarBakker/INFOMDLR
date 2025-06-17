@@ -1,0 +1,32 @@
+[
+  {
+    "embedding_dim": 24,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 128,
+    "dropout_rate": 0.4,
+    "val_loss": 1.703112542629242,
+    "val_accuracy": 0.36666667759418486,
+    "overfit_factor": 1.9312643160224265
+  },
+  {
+    "embedding_dim": 24,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 128,
+    "dropout_rate": 0.3,
+    "val_loss": 1.6191102504730224,
+    "val_accuracy": 0.33333334028720857,
+    "overfit_factor": 1.7863002897505893
+  },
+  {
+    "embedding_dim": 24,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 128,
+    "dropout_rate": 0.2,
+    "val_loss": 1.7004616260528564,
+    "val_accuracy": 0.3000000059604645,
+    "overfit_factor": 1.6586761502429377
+  }
+]

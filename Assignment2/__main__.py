@@ -11,6 +11,7 @@ import json
 import matplotlib
 from itertools import chain
 
+from tune_transformer import print_results_table
 from tune_transformer import tune_transformer_parameters
 
 # Use the TkAgg backend for matplotlib to avoid the need for a display
@@ -37,3 +38,6 @@ tune_transformer_parameters(
     [32, 64, 128],
     [0.2, 0.3, 0.4],
 )
+
+# print_results_table('transformer/intra')
+# print_results_table('transformer/cross')

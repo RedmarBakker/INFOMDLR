@@ -1,92 +1,22 @@
 [
   {
-    "embedding_dim": 8,
-    "n_layers": 2,
-    "n_attn_heads": 2,
-    "mlp_dims": 32,
-    "dropout_rate": 0.3,
-    "val_loss": 1.342709517478943,
-    "val_accuracy": 0.4666666626930237,
-    "overfit_factor": 1.1961589533042938
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 2,
-    "n_attn_heads": 2,
-    "mlp_dims": 64,
-    "dropout_rate": 0.3,
-    "val_loss": 1.5209142446517945,
-    "val_accuracy": 0.31666667461395265,
-    "overfit_factor": 1.9222206225086251
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 2,
-    "n_attn_heads": 4,
-    "mlp_dims": 32,
-    "dropout_rate": 0.3,
-    "val_loss": 1.6707495212554933,
-    "val_accuracy": 0.3833333283662796,
-    "overfit_factor": 1.5546489743868537
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 2,
-    "n_attn_heads": 4,
-    "mlp_dims": 64,
-    "dropout_rate": 0.3,
-    "val_loss": 1.7418577909469604,
-    "val_accuracy": 0.25000000149011614,
-    "overfit_factor": 1.3976954236849464
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 2,
+    "embedding_dim": 24,
+    "n_layers": 6,
     "n_attn_heads": 6,
-    "mlp_dims": 32,
-    "dropout_rate": 0.3,
-    "val_loss": 1.3226433992385864,
-    "val_accuracy": 0.48333333134651185,
-    "overfit_factor": 1.0981088512814756
+    "mlp_dims": 128,
+    "dropout_rate": 0.4,
+    "val_loss": 1.466076636314392,
+    "val_accuracy": 0.43333333134651186,
+    "overfit_factor": 1.915544239739438
   },
   {
-    "embedding_dim": 8,
-    "n_layers": 2,
+    "embedding_dim": 24,
+    "n_layers": 6,
     "n_attn_heads": 6,
-    "mlp_dims": 64,
+    "mlp_dims": 128,
     "dropout_rate": 0.3,
-    "val_loss": 1.5253724694252013,
-    "val_accuracy": 0.36666666269302367,
-    "overfit_factor": 1.2398480457087628
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 4,
-    "n_attn_heads": 2,
-    "mlp_dims": 32,
-    "dropout_rate": 0.3,
-    "val_loss": 1.6122798681259156,
-    "val_accuracy": 0.23333333432674408,
-    "overfit_factor": 1.3411172660150257
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 4,
-    "n_attn_heads": 2,
-    "mlp_dims": 64,
-    "dropout_rate": 0.3,
-    "val_loss": 1.6520041942596435,
-    "val_accuracy": 0.2833333373069763,
-    "overfit_factor": 1.9100326827752983
-  },
-  {
-    "embedding_dim": 8,
-    "n_layers": 4,
-    "n_attn_heads": 4,
-    "mlp_dims": 32,
-    "dropout_rate": 0.3,
-    "val_loss": 1.534194254875183,
-    "val_accuracy": 0.33333332985639574,
-    "overfit_factor": 1.5239427223418058
+    "val_loss": 1.2820696353912353,
+    "val_accuracy": 0.4166666716337204,
+    "overfit_factor": 2.080534412513463
   }
 ]
