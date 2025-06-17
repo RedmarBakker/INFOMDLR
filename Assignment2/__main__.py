@@ -35,9 +35,9 @@ tune_transformer_parameters(
     [8, 16, 24],
     [2, 4, 6],
     [2, 4, 6],
-    [32, 64, 128],
-    [0.2, 0.3, 0.4],
+    [32, 64],
+    [0.3],
 )
 
 # print_results_table('transformer/intra')
-# print_results_table('transformer/cross')
+print_results_table('transformer/cross')

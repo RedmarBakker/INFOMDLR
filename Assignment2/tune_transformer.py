@@ -108,33 +108,9 @@ def train_model(dataset_source, cv_sets, config, results_path):
 
     return np.mean(val_acc_list), np.mean(val_loss_list)
 
-def process_worker(process_id, combination_stack, cv_sets, patch_size, num_patches, dataset_source, results_path):
-    while combination_stack:
-        try:
-            (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) = combination_stack.pop()
-
-            print(f'{datetime.now()} [Process {process_id+1}]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
-
-            acc, loss = train_model(dataset_source, cv_sets, {
-                'num_layers': num_layers,
-                'embedding_size': emb_dim,
-                'num_heads': n_heads,
-                'dropout_rate': dropout_rate,
-                'num_channels': 1,
-                'mlp_dim': mlp_dims,
-                'patch_size': patch_size,
-                'num_patches': num_patches,
-            }, results_path)
-
-            print(f'{datetime.now()} [Process {process_id+1}]: Done ({acc}, {loss})...', flush=True)
-        except IndexError:
-            break
-
 def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate, reversed_execution=False):
-    with_multiprocessing = False
-
     # Process data
-    dataset_source = 'intra'  # intra or 'cross'
+    dataset_source = 'cross'  # intra or 'cross'
 
     print(f'Starting tuning process with source {dataset_source}...')
 
@@ -175,27 +151,28 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
     print(f'Storing results in: {results_path}')
 
-    manager = Manager()
-
     configurations = list(product(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate))
 
     if not reversed_execution:
         configurations = reversed(configurations)
 
-    combination_stack = manager.list(configurations)
+    for combination in configurations:
+        (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) = combination
 
-    if with_multiprocessing:
-        n_processes = 2
-        print(f'Starting {n_processes} processes...')
+        print(f'{datetime.now()} [The only process]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
 
-        with Pool(processes=os.cpu_count()) as pool:
-            pool.starmap(
-                process_worker,
-                [(process_id, combination_stack, cv_sets, X[0].shape[1], X[0].shape[0], dataset_source, results_path)
-                 for process_id in range(n_processes)]
-            )
-    else:
-        process_worker(0, combination_stack, cv_sets, X[0].shape[1], X[0].shape[0], dataset_source, results_path)
+        acc, loss = train_model(dataset_source, cv_sets, {
+            'num_layers': num_layers,
+            'embedding_size': emb_dim,
+            'num_heads': n_heads,
+            'dropout_rate': dropout_rate,
+            'num_channels': 1,
+            'mlp_dim': mlp_dims,
+            'patch_size': X[0].shape[1],
+            'num_patches': X[0].shape[0],
+        }, results_path)
+
+        print(f'{datetime.now()} [The only process]: Done ({acc}, {loss})...', flush=True)
 
 def tune_transformer_step_size(step_sizes):
     results = {}
