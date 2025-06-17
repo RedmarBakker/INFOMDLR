@@ -6,6 +6,8 @@ import platform
 
 import tensorflow as tf
 
+import math
+
 tf.config.set_visible_devices([], 'GPU')
 
 from keras.src.saving import load_model
@@ -14,8 +16,7 @@ from sklearn.model_selection import train_test_split
 from tensorflow.python.distribute.multi_process_lib import multiprocessing
 
 from models.transformer import ClassToken
-from data import build_dataset
-from data import create_cross_validation_sets
+from data import build_dataset, AutoEncoderDataGenerator, load_files, glue_chunks, create_cross_validation_sets
 from models.transformer import build_transformer
 import matplotlib.pyplot as plt
 from itertools import product
@@ -52,7 +53,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
         # Callbacks
         early_stopping = keras.callbacks.EarlyStopping(
             monitor='val_loss',
-            patience=100,
+            patience=80,
             restore_best_weights=True
         )
         model_checkpoint = keras.callbacks.ModelCheckpoint(
@@ -108,7 +109,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
 
     return np.mean(val_acc_list), np.mean(val_loss_list)
 
-def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate, reversed_execution=False):
+def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate, reversed_execution=False, with_autoencoder=False):
     # Process data
     dataset_source = 'cross'  # intra or 'cross'
 
@@ -136,7 +137,64 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
     n_folds = 5
     print(f'Building datasets with {n_folds} folds...')
-    X, y = build_dataset(all_files, 1022)
+
+    if with_autoencoder:
+        # Select the autoencoder model
+        match dataset_source:
+            case 'intra':
+                model_path = './models/autoencoder_intra_dropout+L2.keras'
+            case 'cross':
+                model_path = './models/autoencoder_cross_dropout+L2.keras'
+            case _:
+                raise ValueError(f"Unknown model: {dataset_source}")
+        try:
+            autoencoder = keras.models.load_model(model_path)
+        except Exception as e:
+            print(f"Error loading the model from {model_path}: {e}")
+
+        # Train-test split
+        encoder = autoencoder.get_layer('encoder')
+        print(f"Encoder loaded")
+
+        # Hyperparameter
+        # Encoder
+        BATCH_SIZE_ENCODER = 32
+        CHUNK_SIZE = 128
+
+        EncoderTrainData = AutoEncoderDataGenerator(filepaths=load_files(filepath),
+                                         batch_size=BATCH_SIZE_ENCODER,
+                                         chunk_size=CHUNK_SIZE,
+                                         shuffle=False)
+
+        all_X_train_batches = []
+        all_y_train_batches = []
+
+        for i in range(len(EncoderTrainData)):  # Iterate through all batches
+            X_batch, y_batch = EncoderTrainData[i]  # Get X and Y for each batch
+            if X_batch.shape[0] > 0:  # Only append if the batch is not empty
+                all_X_train_batches.append(X_batch)
+                all_y_train_batches.append(y_batch)
+            else:
+                print(f"WARNING: Skipping empty batch {i} from encoder_train_generator during collection.")
+
+        X_train_full_dataset = np.concatenate(all_X_train_batches, axis=0)
+        y_train_full_dataset = np.concatenate(all_y_train_batches, axis=0)
+
+        # Concatenate the labels
+        nr_chunks = int(math.floor(35624 / CHUNK_SIZE))
+
+        y = y_train_full_dataset[::nr_chunks]
+
+        print(f"train data shape: {X_train_full_dataset.shape}")
+        print(f"train labels shape: {y.shape}")
+
+        # Create the latent representations and glue them for training
+        X_train_latent_chunks = encoder.predict(EncoderTrainData)
+
+        X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
+    else:
+        X, y = build_dataset(all_files, 1022)
+
     cv_sets = create_cross_validation_sets(X, y, chunks=n_folds)
 
     results_path = f"models/transformer/{dataset_source}/results.json"
@@ -153,7 +211,7 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
     configurations = list(product(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate))
 
-    if not reversed_execution:
+    if reversed_execution:
         configurations = reversed(configurations)
 
     for combination in configurations:
@@ -212,7 +270,8 @@ def tune_transformer_step_size(step_sizes):
     return results
 
 def print_results_table(path):
-    path = f'models/{path}/results.json'
+    if not path.endswith('.json'):
+        path = f'models/{path}/results.json'
 
     if not os.path.exists(path):
         print(f"No results file found at {path}")

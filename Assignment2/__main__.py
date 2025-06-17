@@ -32,12 +32,15 @@ from models.spat_temp import build_spat_temp_model
 # plot_dataset_as_meg(load(memory_set_names[0]))
 
 tune_transformer_parameters(
-    [8, 16, 24],
+    [8],
     [2, 4, 6],
     [2, 4, 6],
     [32, 64],
     [0.3],
+    False,
+    True
 )
 
 # print_results_table('transformer/intra')
-print_results_table('transformer/cross')
+# print_results_table('transformer/cross')
+# print_results_table('tuning_results/transformer_parameters.json')
