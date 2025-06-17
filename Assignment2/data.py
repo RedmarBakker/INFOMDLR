@@ -114,6 +114,9 @@ class AutoEncoderDataGenerator(keras.utils.Sequence):
                 chunk = processed_full_subject_data[:, ref['start_time_idx']: ref['end_time_idx']]
                 final_X_sample = chunk.reshape(chunk.shape[0], chunk.shape[1], 1)  # Correct: yields the actual label for the chunk
 
+                X_batch_samples.append(final_X_sample)
+                y_batch_labels.append(ref['label'])
+
             except Exception as e:
                 # --- CRITICAL DEBUG OUTPUT ---
                 print(
@@ -281,7 +284,7 @@ def downsample(sample, sfreq_new):
     return downsampled_data
 
 # step_size: the number of frames that will be averaged to make the data smaller
-def build_dataset(filepaths, sfreq_new=1022):
+def build_dataset(filepaths, sfreq_new=False):
     X = []
     y = []
 
@@ -292,12 +295,13 @@ def build_dataset(filepaths, sfreq_new=1022):
     for filepath_idx, filepath in enumerate(filepaths):
         file_basename = os.path.basename(filepath)
         file_label = -1
-        found_label = False
         for pattern, label_val in label_patterns.items():
             if file_basename.startswith(pattern):
                 file_label = label_val
-                found_label = True
                 break
+
+        if file_label == -1:
+            raise ValueError(f"File {filepath} does not match any label.")
 
         X.append(extract_patches(z_norm(load(filepath))))
         y.append(file_label)
@@ -309,29 +313,32 @@ def build_dataset(filepaths, sfreq_new=1022):
 
     return X, y
 
-def create_cross_validation_sets(X, y, chunks=4):
-    chunk_size = X.shape[0] // chunks
-    cv_sets = []
+def create_cross_validation_sets(X, y, chunks=4, max_attempts=100):
+    for attempt in range(max_attempts):
+        X_shuffled, y_shuffled = shuffle(X, y, random_state=42 + attempt)
+        chunk_size = X.shape[0] // chunks
+        cv_sets = []
+        all_folds_valid = True
 
-    for i in range(chunks):
-        for attempt in range(100):  # limit attempts to avoid infinite loop
+        for i in range(chunks):
             val_start = i * chunk_size
             val_end = (i + 1) * chunk_size
 
-            X_val = X[val_start:val_end]
-            y_val = y[val_start:val_end]
+            X_val = X_shuffled[val_start:val_end]
+            y_val = y_shuffled[val_start:val_end]
 
-            if all(label in y_val for label in range(4)):
-                X_train = np.concatenate((X[:val_start], X[val_end:]), axis=0)
-                y_train = np.concatenate((y[:val_start], y[val_end:]), axis=0)
+            if all(label in y_val for label in [0, 1, 2, 3]):
+                X_train = np.concatenate((X_shuffled[:val_start], X_shuffled[val_end:]), axis=0)
+                y_train = np.concatenate((y_shuffled[:val_start], y_shuffled[val_end:]), axis=0)
                 cv_sets.append((X_train, y_train, X_val, y_val))
-                break
             else:
-                X, y = shuffle(X, y, random_state=i * 100 + attempt)
-        else:
-            raise ValueError("Unable to create a validation set with all classes present after 100 attempts.")
+                all_folds_valid = False
+                break
 
-    return cv_sets
+        if all_folds_valid:
+            return cv_sets
+
+    raise ValueError(f"Could not create valid cross-validation sets with all labels after {max_attempts} shuffles.")
 
 def glue_chunks(data:np.array, nr_chunks:int) -> np.array:
     if not nr_chunks:
