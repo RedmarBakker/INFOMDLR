@@ -114,6 +114,9 @@ class AutoEncoderDataGenerator(keras.utils.Sequence):
                 chunk = processed_full_subject_data[:, ref['start_time_idx']: ref['end_time_idx']]
                 final_X_sample = chunk.reshape(chunk.shape[0], chunk.shape[1], 1)  # Correct: yields the actual label for the chunk
 
+                X_batch_samples.append(final_X_sample)
+                y_batch_labels.append(ref['label'])
+
             except Exception as e:
                 # --- CRITICAL DEBUG OUTPUT ---
                 print(
@@ -281,7 +284,7 @@ def downsample(sample, sfreq_new):
     return downsampled_data
 
 # step_size: the number of frames that will be averaged to make the data smaller
-def build_dataset(filepaths, sfreq_new=1022):
+def build_dataset(filepaths, sfreq_new=False):
     X = []
     y = []
 

@@ -178,5 +178,195 @@
     "val_loss": 1.5590729475021363,
     "val_accuracy": 0.3666666731238365,
     "overfit_factor": 1.9945387091619995
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.305049228668213,
+    "val_accuracy": 0.4499999940395355,
+    "overfit_factor": 1.6583240683689238
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.6138729095458983,
+    "val_accuracy": 0.25000000447034837,
+    "overfit_factor": 1.062978640423173
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 2,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.740434503555298,
+    "val_accuracy": 0.28333333134651184,
+    "overfit_factor": 1.8099133529416274
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 4,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3819216966629029,
+    "val_accuracy": 0.28333333432674407,
+    "overfit_factor": 1.3485043296641679
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.5110833644866943,
+    "val_accuracy": 0.3666666686534882,
+    "overfit_factor": 2.0376176929305023
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.4231982231140137,
+    "val_accuracy": 0.4666666775941849,
+    "overfit_factor": 1.6721946831427161
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 6,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.5962034702301025,
+    "val_accuracy": 0.3499999940395355,
+    "overfit_factor": 1.540950067656602
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.6563500881195068,
+    "val_accuracy": 0.2666666731238365,
+    "overfit_factor": 1.6078313517837464
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 2,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3903295278549195,
+    "val_accuracy": 0.33333333134651183,
+    "overfit_factor": 1.240628404056619
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3496707439422608,
+    "val_accuracy": 0.38333333283662796,
+    "overfit_factor": 1.5022620524629304
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3645788192749024,
+    "val_accuracy": 0.4666666626930237,
+    "overfit_factor": 1.3342952949249403
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.5941006660461425,
+    "val_accuracy": 0.3333333358168602,
+    "overfit_factor": 1.3697748206716034
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3955633640289307,
+    "val_accuracy": 0.36666666269302367,
+    "overfit_factor": 1.3809261631654575
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3384808540344237,
+    "val_accuracy": 0.3000000029802322,
+    "overfit_factor": 1.1990831086563658
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 2,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3294844269752502,
+    "val_accuracy": 0.2500000029802322,
+    "overfit_factor": 1.289453994136682
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 4,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.6433421611785888,
+    "val_accuracy": 0.28333333432674407,
+    "overfit_factor": 1.406405466438108
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.2490877866744996,
+    "val_accuracy": 0.4333333432674408,
+    "overfit_factor": 1.3523714417867196
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.5768769025802611,
+    "val_accuracy": 0.31666666716337205,
+    "overfit_factor": 1.709625554222998
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.1,
+    "val_loss": 1.6199220895767212,
+    "val_accuracy": 0.3833333417773247,
+    "overfit_factor": 1.3367480736911848
   }
 ]

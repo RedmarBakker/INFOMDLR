@@ -42,7 +42,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
         transformer = build_transformer(config)
 
         transformer.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.001),
+            optimizer=keras.optimizers.Adam(learning_rate=0.003),
             loss='sparse_categorical_crossentropy',
             metrics=['accuracy']
         )
@@ -70,7 +70,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
             #verbose=1
         )
 
-        transformer.fit(X_train, y_train, epochs=200, validation_data=(X_val, y_val), batch_size=16, callbacks=[model_checkpoint, reduce_lr, early_stopping], verbose=0)
+        transformer.fit(X_train, y_train, epochs=200, validation_data=(X_val, y_val), batch_size=16, callbacks=[model_checkpoint, reduce_lr, early_stopping], verbose=1)
 
         best_model = load_model(filepath, {'ClassToken': ClassToken})
         train_loss, train_accuracy = best_model.evaluate(X_train, y_train)
@@ -111,7 +111,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
 
 def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate, reversed_execution=False, with_autoencoder=False):
     # Process data
-    dataset_source = 'cross'  # intra or 'cross'
+    dataset_source = 'intra'  # intra or 'cross'
 
     print(f'Starting tuning process with source {dataset_source}...')
 
@@ -161,10 +161,12 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
         BATCH_SIZE_ENCODER = 32
         CHUNK_SIZE = 128
 
-        EncoderTrainData = AutoEncoderDataGenerator(filepaths=load_files(filepath),
-                                         batch_size=BATCH_SIZE_ENCODER,
-                                         chunk_size=CHUNK_SIZE,
-                                         shuffle=False)
+        EncoderTrainData = AutoEncoderDataGenerator(
+            filepaths=load_files(filepath),
+            batch_size=BATCH_SIZE_ENCODER,
+            chunk_size=CHUNK_SIZE,
+            shuffle=False
+        )
 
         all_X_train_batches = []
         all_y_train_batches = []
@@ -193,11 +195,16 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
         X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
     else:
-        X, y = build_dataset(all_files, 1022)
+        X, y = build_dataset(all_files)
 
     cv_sets = create_cross_validation_sets(X, y, chunks=n_folds)
 
-    results_path = f"models/transformer/{dataset_source}/results.json"
+    model_name = 'transformer'
+
+    if with_autoencoder:
+        model_name += '_autoencoder'
+
+    results_path = f"models/{model_name}/{dataset_source}/results.json"
 
     # Ensure the parent directory exists
     os.makedirs(os.path.dirname(results_path), exist_ok=True)
@@ -216,6 +223,26 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
     for combination in configurations:
         (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) = combination
+
+        # Load existing results
+        if os.path.exists(results_path):
+            with open(results_path, "r") as f:
+                try:
+                    all_results = json.load(f)
+                except json.JSONDecodeError:
+                    all_results = []
+        else:
+            all_results = []
+
+        # Check if config already exists in results
+        for result in all_results:
+            if (result.get("embedding_dim") == emb_dim and
+                    result.get("n_layers") == num_layers and
+                    result.get("n_attn_heads") == n_heads and
+                    result.get("mlp_dims") == mlp_dims and
+                    result.get("dropout_rate") == dropout_rate):
+                print(f"Skipping already evaluated config...")
+                return None, None
 
         print(f'{datetime.now()} [The only process]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
 
