@@ -27,8 +27,33 @@ import numpy as np
 from multiprocessing import Pool, Manager
 from functools import partial
 
+from keras.src.callbacks import Callback
+
+class OverfitStopping(Callback):
+    def __init__(self, factor=5.0, patience=5):
+        super().__init__()
+        self.factor = factor
+        self.patience = patience
+        self.wait = 0
+
+    def on_epoch_end(self, epoch, logs=None):
+        logs = logs or {}
+        train_loss = logs.get("loss")
+        val_loss = logs.get("val_loss")
+
+        if train_loss is None or val_loss is None:
+            return
+
+        if train_loss * self.factor < val_loss:
+            self.wait += 1
+            if self.wait >= self.patience:
+                print(f"\nStopping early: train_loss is {self.factor}x smaller than val_loss for {self.patience} epochs.")
+                self.model.stop_training = True
+        else:
+            self.wait = 0
+
 # for i, (emb_dim, num_layers, n_heads, mlp_dims, dropout_rate) in enumerate(combinations):
-def train_model(dataset_source, cv_sets, config, results_path):
+def train_model(model_name, dataset_source, cv_sets, config, results_path):
     # Build the Transformer model
 
     train_loss_list = []
@@ -42,20 +67,22 @@ def train_model(dataset_source, cv_sets, config, results_path):
         transformer = build_transformer(config)
 
         transformer.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.003),
+            optimizer=keras.optimizers.Adam(learning_rate=0.001),
             loss='sparse_categorical_crossentropy',
             metrics=['accuracy']
         )
 
         # Callback filepath
-        filepath = f"./models/transformer/{dataset_source}/emb{config['embedding_size']}_layers{config['num_layers']}_heads{config['num_heads']}_mlp{config['mlp_dim']}_dropout{config['dropout_rate']}_cv{i}.keras"
+        filepath = f"./models/{model_name}/{dataset_source}/emb{config['embedding_size']}_layers{config['num_layers']}_heads{config['num_heads']}_mlp{config['mlp_dim']}_dropout{config['dropout_rate']}_cv{i}.keras"
 
-        # Callbacks
-        early_stopping = keras.callbacks.EarlyStopping(
-            monitor='val_loss',
-            patience=80,
-            restore_best_weights=True
-        )
+        # # Callbacks
+        # early_stopping = keras.callbacks.EarlyStopping(
+        #     monitor='val_loss',
+        #     patience=80,
+        #     restore_best_weights=True
+        # )
+
+        overfit_stopping = OverfitStopping(factor=4, patience=10)
         model_checkpoint = keras.callbacks.ModelCheckpoint(
             filepath=filepath,
             monitor='val_loss',
@@ -64,13 +91,13 @@ def train_model(dataset_source, cv_sets, config, results_path):
         )
         reduce_lr = keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
-            factor=0.95,
+            factor=0.98,
             patience=1,
             min_lr=1e-6,
             #verbose=1
         )
 
-        transformer.fit(X_train, y_train, epochs=200, validation_data=(X_val, y_val), batch_size=16, callbacks=[model_checkpoint, reduce_lr, early_stopping], verbose=1)
+        transformer.fit(X_train, y_train, epochs=200, validation_data=(X_val, y_val), batch_size=16, callbacks=[model_checkpoint, reduce_lr, overfit_stopping], verbose=1)
 
         best_model = load_model(filepath, {'ClassToken': ClassToken})
         train_loss, train_accuracy = best_model.evaluate(X_train, y_train)
@@ -111,7 +138,7 @@ def train_model(dataset_source, cv_sets, config, results_path):
 
 def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims, dropout_rate, reversed_execution=False, with_autoencoder=False):
     # Process data
-    dataset_source = 'intra'  # intra or 'cross'
+    dataset_source = 'cross'  # intra or 'cross'
 
     print(f'Starting tuning process with source {dataset_source}...')
 
@@ -139,61 +166,76 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
     print(f'Building datasets with {n_folds} folds...')
 
     if with_autoencoder:
-        # Select the autoencoder model
-        match dataset_source:
-            case 'intra':
-                model_path = './models/autoencoder_intra_dropout+L2.keras'
-            case 'cross':
-                model_path = './models/autoencoder_cross_dropout+L2.keras'
-            case _:
-                raise ValueError(f"Unknown model: {dataset_source}")
-        try:
-            autoencoder = keras.models.load_model(model_path)
-        except Exception as e:
-            print(f"Error loading the model from {model_path}: {e}")
+        latent_path = f'data/autoencoder/{dataset_source}/X_latent.npy'
+        labels_path = f'data/autoencoder/{dataset_source}/y_labels.npy'
 
-        # Train-test split
-        encoder = autoencoder.get_layer('encoder')
-        print(f"Encoder loaded")
+        if os.path.exists(latent_path) and os.path.exists(labels_path):
+            print("Loading latent dataset from disk...")
+            X = np.load(latent_path)
+            y = np.load(labels_path)
+        else:
+            # Select the autoencoder model
+            match dataset_source:
+                case 'intra':
+                    model_path = './models/autoencoder_intra_dropout+L2.keras'
+                case 'cross':
+                    model_path = './models/autoencoder_cross_dropout+L2.keras'
+                case _:
+                    raise ValueError(f"Unknown model: {dataset_source}")
+            try:
+                autoencoder = keras.models.load_model(model_path)
+            except Exception as e:
+                print(f"Error loading the model from {model_path}: {e}")
 
-        # Hyperparameter
-        # Encoder
-        BATCH_SIZE_ENCODER = 32
-        CHUNK_SIZE = 128
+            # Train-test split
+            encoder = autoencoder.get_layer('encoder')
+            print(f"Encoder loaded")
 
-        EncoderTrainData = AutoEncoderDataGenerator(
-            filepaths=load_files(filepath),
-            batch_size=BATCH_SIZE_ENCODER,
-            chunk_size=CHUNK_SIZE,
-            shuffle=False
-        )
+            # Hyperparameter
+            # Encoder
+            BATCH_SIZE_ENCODER = 32
+            CHUNK_SIZE = 128
 
-        all_X_train_batches = []
-        all_y_train_batches = []
+            EncoderTrainData = AutoEncoderDataGenerator(
+                filepaths=load_files(filepath),
+                batch_size=BATCH_SIZE_ENCODER,
+                chunk_size=CHUNK_SIZE,
+                shuffle=False
+            )
 
-        for i in range(len(EncoderTrainData)):  # Iterate through all batches
-            X_batch, y_batch = EncoderTrainData[i]  # Get X and Y for each batch
-            if X_batch.shape[0] > 0:  # Only append if the batch is not empty
-                all_X_train_batches.append(X_batch)
-                all_y_train_batches.append(y_batch)
-            else:
-                print(f"WARNING: Skipping empty batch {i} from encoder_train_generator during collection.")
+            all_X_train_batches = []
+            all_y_train_batches = []
 
-        X_train_full_dataset = np.concatenate(all_X_train_batches, axis=0)
-        y_train_full_dataset = np.concatenate(all_y_train_batches, axis=0)
+            for i in range(len(EncoderTrainData)):  # Iterate through all batches
+                X_batch, y_batch = EncoderTrainData[i]  # Get X and Y for each batch
+                if X_batch.shape[0] > 0:  # Only append if the batch is not empty
+                    all_X_train_batches.append(X_batch)
+                    all_y_train_batches.append(y_batch)
+                else:
+                    print(f"WARNING: Skipping empty batch {i} from encoder_train_generator during collection.")
 
-        # Concatenate the labels
-        nr_chunks = int(math.floor(35624 / CHUNK_SIZE))
+            X_train_full_dataset = np.concatenate(all_X_train_batches, axis=0)
+            y_train_full_dataset = np.concatenate(all_y_train_batches, axis=0)
 
-        y = y_train_full_dataset[::nr_chunks]
+            # Concatenate the labels
+            nr_chunks = int(math.floor(35624 / CHUNK_SIZE))
 
-        print(f"train data shape: {X_train_full_dataset.shape}")
-        print(f"train labels shape: {y.shape}")
+            y = y_train_full_dataset[::nr_chunks]
 
-        # Create the latent representations and glue them for training
-        X_train_latent_chunks = encoder.predict(EncoderTrainData)
+            print(f"train data shape: {X_train_full_dataset.shape}")
+            print(f"train labels shape: {y.shape}")
 
-        X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
+            # Create the latent representations and glue them for training
+            X_train_latent_chunks = encoder.predict(X_train_full_dataset)
+
+            X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
+
+            os.makedirs(f'models/transformer_autoencoder/{dataset_source}', exist_ok=True)
+
+            np.save(latent_path, X)
+            np.save(labels_path, y)
+
+            print(f"Saved latent data and labels to disk.")
     else:
         X, y = build_dataset(all_files)
 
@@ -246,7 +288,7 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
 
         print(f'{datetime.now()} [The only process]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
 
-        acc, loss = train_model(dataset_source, cv_sets, {
+        acc, loss = train_model(model_name, dataset_source, cv_sets, {
             'num_layers': num_layers,
             'embedding_size': emb_dim,
             'num_heads': n_heads,

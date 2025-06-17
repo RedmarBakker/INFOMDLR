@@ -31,15 +31,15 @@ from models.spat_temp import build_spat_temp_model
 # plot_dataset_as_meg(load(math_set_names[0]))
 # plot_dataset_as_meg(load(memory_set_names[0]))
 
-tune_transformer_parameters(
-    [8, 16],
-    [2, 4, 6],
-    [2, 4, 6],
-    [32, 64],
-    [0.3],
-    with_autoencoder=True
-)
+# tune_transformer_parameters(
+#     [32, 64, 128],
+#     [2, 4, 6],
+#     [2, 4, 6],
+#     [64, 128],
+#     [0.3],
+#     reversed_execution=True,
+#     with_autoencoder=True
+# )
 
-# print_results_table('transformer/intra')
+print_results_table('transformer_autoencoder/cross')
 # print_results_table('transformer/cross')
-# print_results_table('tuning_results/transformer_parameters.json')

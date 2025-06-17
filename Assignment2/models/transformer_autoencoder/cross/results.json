@@ -1,1 +1,102 @@
-[]
+[
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 2,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3700756788253785,
+    "val_accuracy": 0.3166666716337204,
+    "overfit_factor": 0.9728210718645811
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 2,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3860750198364258,
+    "val_accuracy": 0.26666667461395266,
+    "overfit_factor": 0.9925592289192139
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 4,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3774642467498779,
+    "val_accuracy": 0.38333333730697633,
+    "overfit_factor": 0.9840271590295336
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3688063621520996,
+    "val_accuracy": 0.2666666701436043,
+    "overfit_factor": 0.9624254773571294
+  },
+  {
+    "embedding_dim": 8,
+    "n_layers": 2,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.3,
+    "val_loss": 1.3570551872253418,
+    "val_accuracy": 0.3833333313465118,
+    "overfit_factor": 0.9685234333787167
+  },
+  {
+    "embedding_dim": 64,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 128,
+    "dropout_rate": 0.2,
+    "val_loss": 1.2770937442779542,
+    "val_accuracy": 0.33333333432674406,
+    "overfit_factor": 1.2268924974415496
+  },
+  {
+    "embedding_dim": 32,
+    "n_layers": 4,
+    "n_attn_heads": 4,
+    "mlp_dims": 64,
+    "dropout_rate": 0.2,
+    "val_loss": 1.3654723405838012,
+    "val_accuracy": 0.35000000298023226,
+    "overfit_factor": 1.3331157952243025
+  },
+  {
+    "embedding_dim": 128,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 128,
+    "dropout_rate": 0.3,
+    "val_loss": 1.2356520295143127,
+    "val_accuracy": 0.41666666269302366,
+    "overfit_factor": 1.0915816118919226
+  },
+  {
+    "embedding_dim": 128,
+    "n_layers": 6,
+    "n_attn_heads": 6,
+    "mlp_dims": 64,
+    "dropout_rate": 0.3,
+    "val_loss": 1.2439866065979004,
+    "val_accuracy": 0.3833333313465118,
+    "overfit_factor": 1.0952872063622348
+  },
+  {
+    "embedding_dim": 128,
+    "n_layers": 6,
+    "n_attn_heads": 4,
+    "mlp_dims": 128,
+    "dropout_rate": 0.3,
+    "val_loss": 1.1996869564056396,
+    "val_accuracy": 0.3833333313465118,
+    "overfit_factor": 1.1236278599719711
+  }
+]

@@ -368,5 +368,35 @@
     "val_loss": 1.6199220895767212,
     "val_accuracy": 0.3833333417773247,
     "overfit_factor": 1.3367480736911848
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.2,
+    "val_loss": 1.67109854221344,
+    "val_accuracy": 0.31666666716337205,
+    "overfit_factor": 2.002701166832582
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.4,
+    "val_loss": 1.300183928012848,
+    "val_accuracy": 0.34999999701976775,
+    "overfit_factor": 1.9640219370066023
+  },
+  {
+    "embedding_dim": 16,
+    "n_layers": 4,
+    "n_attn_heads": 6,
+    "mlp_dims": 32,
+    "dropout_rate": 0.5,
+    "val_loss": 1.6065331935882567,
+    "val_accuracy": 0.283333332836628,
+    "overfit_factor": 1.3489911437859865
   }
 ]
