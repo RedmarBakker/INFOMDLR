@@ -284,7 +284,7 @@ def downsample(sample, sfreq_new):
     return downsampled_data
 
 # step_size: the number of frames that will be averaged to make the data smaller
-def build_dataset(filepaths, sfreq_new=False):
+def build_dataset(filepaths, with_patches=True, resampling=False):
     X = []
     y = []
 
@@ -303,7 +303,15 @@ def build_dataset(filepaths, sfreq_new=False):
         if file_label == -1:
             raise ValueError(f"File {filepath} does not match any label.")
 
-        X.append(extract_patches(z_norm(load(filepath))))
+        data = z_norm(load(filepath))
+
+        if resampling > 0:
+            data = downsample(data, resampling)
+
+        if with_patches:
+            data = extract_patches(data)
+
+        X.append(data)
         y.append(file_label)
 
     X = np.stack(X)  # shape: (num_samples, 248, 35624)
@@ -312,6 +320,15 @@ def build_dataset(filepaths, sfreq_new=False):
     X, y = shuffle(X, y, random_state=42)
 
     return X, y
+
+# step_size: the number of frames that will be averaged to make the data smaller
+def pre_process(X_raw):
+    X = []
+
+    for sample in X_raw:
+        X.append(extract_patches(z_norm(sample)))
+
+    return X
 
 def create_cross_validation_sets(X, y, chunks=4, max_attempts=100):
     for attempt in range(max_attempts):

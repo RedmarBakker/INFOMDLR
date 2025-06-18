@@ -11,9 +11,9 @@ from sklearn.model_selection import train_test_split
 from data import build_dataset
 import math
 
-model_folder = './models/transformer/intra/best_models/'
+model_folder = './models/cnn/intra'
 
-filepath = './Intra/test/'
+filepath = './Intra/train'
 dataset_source = 'intra'
 
 all_files = []
@@ -28,7 +28,7 @@ print(f"Found {len(all_files)} files in {filepath}")
 with_autoencoder = False
 
 if not with_autoencoder:
-    X, y = build_dataset(all_files)
+    X, y = build_dataset(all_files, with_patches=False, resampling=250)
 else:
     # Select the autoencoder model
     match dataset_source:

@@ -8,6 +8,8 @@ import tensorflow as tf
 
 import math
 
+from data import pre_process
+
 tf.config.set_visible_devices([], 'GPU')
 
 from keras.src.saving import load_model
@@ -229,6 +231,7 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
             X_train_latent_chunks = encoder.predict(X_train_full_dataset)
 
             X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
+            X = pre_process(X)
 
             os.makedirs(f'models/transformer_autoencoder/{dataset_source}', exist_ok=True)
 
