@@ -818,5 +818,15 @@
     "val_loss": 1.2726731777191163,
     "val_accuracy": 0.3000000029802322,
     "overfit_factor": 1.037369463606961
+  },
+  {
+    "embedding_dim": 128,
+    "n_layers": 2,
+    "n_attn_heads": 4,
+    "mlp_dims": 128,
+    "dropout_rate": 0.5,
+    "val_loss": 1.2844699144363403,
+    "val_accuracy": 0.36666666269302367,
+    "overfit_factor": 1.0916335176393417
   }
 ]

@@ -67,7 +67,7 @@ def train_model(model_name, dataset_source, cv_sets, config, results_path):
         transformer = build_transformer(config)
 
         transformer.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=0.001),
+            optimizer=keras.optimizers.Adam(learning_rate=0.0001),
             loss='sparse_categorical_crossentropy',
             metrics=['accuracy']
         )

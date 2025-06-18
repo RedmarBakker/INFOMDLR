@@ -31,20 +31,20 @@ from models.spat_temp import build_spat_temp_model
 # plot_dataset_as_meg(load(math_set_names[0]))
 # plot_dataset_as_meg(load(memory_set_names[0]))
 
-# while True:
-#     try:
-#         tune_transformer_parameters(
-#             [128],
-#             [2],
-#             [4],
-#             [128],
-#             [0.5],
-#             with_autoencoder=True
-#         )
-#         break
-#     except Exception as e:
-#         print(f"Error occurred: {e}")
-#         print("Retrying...")
+while True:
+    try:
+        tune_transformer_parameters(
+            [128],
+            [4],
+            [4],
+            [128],
+            [0.3],
+        )
+        break
+    except Exception as e:
+        print(f"Error occurred: {e}")
+        print("Retrying...")
 
-# print_results_table('transformer_autoencoder/cross')
-print_results_table('transformer/cross')
+# print_results_table('transformer/cross')
+# print_results_table('transformer/cross')
+print_results_table('transformer_autoencoder/cross')

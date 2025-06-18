@@ -2,13 +2,19 @@ import os
 import tensorflow as tf
 import keras
 import numpy as np
+from tensorflow.python.keras.utils.version_utils import training
+
+from data import glue_chunks
+from data import AutoEncoderDataGenerator, load_files
 from models.transformer import ClassToken
 from sklearn.model_selection import train_test_split
 from data import build_dataset
+import math
 
-model_folder = './models/transformer/cross/best_models/'
+model_folder = './models/transformer/intra/best_models/'
 
-filepath = './Intra/train/'
+filepath = './Intra/test/'
+dataset_source = 'intra'
 
 all_files = []
 for root, _, files in os.walk(filepath):
@@ -19,11 +25,70 @@ for root, _, files in os.walk(filepath):
 all_files.sort()
 print(f"Found {len(all_files)} files in {filepath}")
 
-X, y = build_dataset(all_files)
-X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+with_autoencoder = False
 
+if not with_autoencoder:
+    X, y = build_dataset(all_files)
+else:
+    # Select the autoencoder model
+    match dataset_source:
+        case 'intra':
+            model_path = './models/autoencoder_intra_dropout+L2.keras'
+        case 'cross':
+            model_path = './models/autoencoder_cross_dropout+L2.keras'
+        case _:
+            raise ValueError(f"Unknown model: {dataset_source}")
+    try:
+        autoencoder = keras.models.load_model(model_path)
+    except Exception as e:
+        print(f"Error loading the model from {model_path}: {e}")
 
-print(f"Created train and validation sets with {len(X_train)} and {len(X_val)} samples respectively.")
+    # Train-test split
+    encoder = autoencoder.get_layer('encoder')
+    print(f"Encoder loaded")
+
+    # Hyperparameter
+    # Encoder
+    BATCH_SIZE_ENCODER = 32
+    CHUNK_SIZE = 128
+
+    EncoderTrainData = AutoEncoderDataGenerator(
+        filepaths=load_files(filepath),
+        batch_size=BATCH_SIZE_ENCODER,
+        chunk_size=CHUNK_SIZE,
+        shuffle=False
+    )
+
+    all_X_train_batches = []
+    all_y_train_batches = []
+
+    for i in range(len(EncoderTrainData)):  # Iterate through all batches
+        X_batch, y_batch = EncoderTrainData[i]  # Get X and Y for each batch
+        if X_batch.shape[0] > 0:  # Only append if the batch is not empty
+            all_X_train_batches.append(X_batch)
+            all_y_train_batches.append(y_batch)
+        else:
+            print(f"WARNING: Skipping empty batch {i} from encoder_train_generator during collection.")
+
+    X_train_full_dataset = np.concatenate(all_X_train_batches, axis=0)
+    y_train_full_dataset = np.concatenate(all_y_train_batches, axis=0)
+
+    # Concatenate the labels
+    nr_chunks = int(math.floor(35624 / CHUNK_SIZE))
+
+    y = y_train_full_dataset[::nr_chunks]
+
+    print(f"train data shape: {X_train_full_dataset.shape}")
+    print(f"train labels shape: {y.shape}")
+
+    # Create the latent representations and glue them for training
+    X_train_latent_chunks = encoder.predict(X_train_full_dataset)
+
+    X = glue_chunks(X_train_latent_chunks, nr_chunks=nr_chunks)
+
+# X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, random_state=42)
+
+print(f"Created train and validation sets with {len(X)} and {len(y)} samples respectively.")
 
 evaluated_models_results = {}
 
@@ -38,7 +103,7 @@ for model_name in os.listdir(model_folder):
         print(f"Evaluating model: {model_name}")
         try:
             model = keras.models.load_model(model_path, {'ClassToken': ClassToken})
-            loss, accuracy = model.evaluate(X_val, y_val, verbose=1)
+            loss, accuracy = model.evaluate(X, y, verbose=1)
 
             print(f"  Validation Loss: {loss:.6f}")
             print(f"  Validation Accuracy: {accuracy:.4f}")
