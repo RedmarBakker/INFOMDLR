@@ -277,6 +277,7 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
             all_results = []
 
         # Check if config already exists in results
+        skip = False
         for result in all_results:
             if (result.get("embedding_dim") == emb_dim and
                     result.get("n_layers") == num_layers and
@@ -284,22 +285,23 @@ def tune_transformer_parameters(embedding_dims, n_layers, n_attn_heads, mlp_dims
                     result.get("mlp_dims") == mlp_dims and
                     result.get("dropout_rate") == dropout_rate):
                 print(f"Skipping already evaluated config...")
-                return None, None
+                skip = True
 
-        print(f'{datetime.now()} [The only process]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
+        if not skip:
+            print(f'{datetime.now()} [The only process]: Start training ({emb_dim}, {num_layers}, {n_heads}, {mlp_dims}, {dropout_rate})...', flush=True)
 
-        acc, loss = train_model(model_name, dataset_source, cv_sets, {
-            'num_layers': num_layers,
-            'embedding_size': emb_dim,
-            'num_heads': n_heads,
-            'dropout_rate': dropout_rate,
-            'num_channels': 1,
-            'mlp_dim': mlp_dims,
-            'patch_size': X[0].shape[1],
-            'num_patches': X[0].shape[0],
-        }, results_path)
+            acc, loss = train_model(model_name, dataset_source, cv_sets, {
+                'num_layers': num_layers,
+                'embedding_size': emb_dim,
+                'num_heads': n_heads,
+                'dropout_rate': dropout_rate,
+                'num_channels': 1,
+                'mlp_dim': mlp_dims,
+                'patch_size': X[0].shape[1],
+                'num_patches': X[0].shape[0],
+            }, results_path)
 
-        print(f'{datetime.now()} [The only process]: Done ({acc}, {loss})...', flush=True)
+            print(f'{datetime.now()} [The only process]: Done ({acc}, {loss})...', flush=True)
 
 def tune_transformer_step_size(step_sizes):
     results = {}

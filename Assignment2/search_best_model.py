@@ -6,7 +6,7 @@ from models.transformer import ClassToken
 from sklearn.model_selection import train_test_split
 from data import build_dataset
 
-model_folder = './models/transformer/intra/best_models/'
+model_folder = './models/transformer/cross/best_models/'
 
 filepath = './Intra/train/'
 
